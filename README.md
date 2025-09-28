@@ -1,9 +1,7 @@
 # SAVAGE-BOTS-ENTRYPOINT
-# <img src="https://i.imgur.com/7Q8p5Xj.png" width="50" height="50"> SAVAGE BOTS SCANNER
+# 🦅 SAVAGE BOTS SCANNER
 
-![Savage Bots Scanner Banner](https://i.imgur.com/3nQ8W2j.png)
-
-> *"When ordinary isn't an option" - Advanced Multi-Bot WhatsApp Scanner System*
+> **"When ordinary isn't an option"** - Advanced Multi-Bot WhatsApp Scanner System
 
 ---
 
