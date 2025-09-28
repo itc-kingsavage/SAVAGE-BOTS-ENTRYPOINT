@@ -1,0 +1,632 @@
+/**
+ * 🦅 SAVAGE BOTS SCANNER - Hacker Theme CSS
+ * Burning cards background + Matrix effects
+ * Green-on-black terminal style
+ */
+
+/* =============================================================================
+   🌌 BASE STYLES & RESET
+   ============================================================================= */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    /* 🎨 Hacker Color Palette */
+    --matrix-green: #00FF00;
+    --matrix-bright: #39FF14;
+    --matrix-dark: #003300;
+    --terminal-black: #000000;
+    --terminal-gray: #0A0A0A;
+    --warning-red: #FF0000;
+    --warning-yellow: #FFFF00;
+    --accent-blue: #0000FF;
+    --accent-purple: #FF00FF;
+    
+    /* 📏 Sizing */
+    --border-glow: 2px;
+    --terminal-radius: 8px;
+    --matrix-speed: 2s;
+}
+
+body {
+    font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
+    background: var(--terminal-black);
+    color: var(--matrix-green);
+    line-height: 1.6;
+    overflow-x: hidden;
+    min-height: 100vh;
+    position: relative;
+}
+
+/* =============================================================================
+   🎭 BURNING CARDS BACKGROUND
+   ============================================================================= */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: 
+        /* 🔥 Burning cards overlay */
+        url('../assets/images/burning-cards.png') center/cover no-repeat,
+        /* 🌌 Dark matrix overlay */
+        linear-gradient(45deg, rgba(0, 255, 0, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 20% 80%, rgba(255, 0, 0, 0.1) 0%, transparent 40%),
+        radial-gradient(circle at 80% 20%, rgba(0, 0, 255, 0.1) 0%, transparent 40%);
+    opacity: 0.7;
+    z-index: -2;
+    animation: burningEffect 10s ease-in-out infinite;
+}
+
+@keyframes burningEffect {
+    0%, 100% { 
+        filter: hue-rotate(0deg) brightness(1);
+        transform: scale(1);
+    }
+    50% { 
+        filter: hue-rotate(90deg) brightness(1.1);
+        transform: scale(1.02);
+    }
+}
+
+/* =============================================================================
+   🌟 MATRIX RAIN EFFECT
+   ============================================================================= */
+.matrix-rain {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: -1;
+    opacity: 0.3;
+}
+
+.matrix-column {
+    display: inline-block;
+    width: 1em;
+    margin-right: 2px;
+    animation: matrixRain var(--matrix-speed) linear infinite;
+    animation-delay: calc(var(--delay) * 1s);
+    color: var(--matrix-green);
+    text-shadow: 0 0 5px var(--matrix-green);
+}
+
+@keyframes matrixRain {
+    0% {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    5% {
+        opacity: 1;
+    }
+    95% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(1000%);
+        opacity: 0;
+    }
+}
+
+/* =============================================================================
+   🦅 TERMINAL CONTAINERS
+   ============================================================================= */
+.terminal-container {
+    background: rgba(0, 0, 0, 0.85);
+    border: 1px solid var(--matrix-green);
+    border-radius: var(--terminal-radius);
+    box-shadow: 
+        0 0 20px rgba(0, 255, 0, 0.3),
+        inset 0 0 20px rgba(0, 255, 0, 0.1);
+    backdrop-filter: blur(10px);
+    position: relative;
+    overflow: hidden;
+}
+
+.terminal-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, 
+        transparent, 
+        var(--matrix-green), 
+        transparent);
+    animation: scanLine 3s linear infinite;
+}
+
+@keyframes scanLine {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* =============================================================================
+   🔐 PASSWORD PORTAL STYLES
+   ============================================================================= */
+.password-portal {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: radial-gradient(ellipse at center, rgba(0, 50, 0, 0.4) 0%, rgba(0, 0, 0, 0.9) 70%);
+}
+
+.portal-container {
+    width: 100%;
+    max-width: 500px;
+    padding: 40px 30px;
+    text-align: center;
+}
+
+.savage-logo {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 20px;
+    background: url('../assets/images/savage-logo.png') center/contain no-repeat;
+    filter: drop-shadow(0 0 15px var(--matrix-green));
+    animation: logoPulse 4s ease-in-out infinite;
+}
+
+@keyframes logoPulse {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 15px var(--matrix-green)); }
+    50% { transform: scale(1.05); filter: drop-shadow(0 0 25px var(--matrix-bright)); }
+}
+
+.portal-title {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    text-shadow: 0 0 10px var(--matrix-green);
+    background: linear-gradient(45deg, var(--matrix-green), var(--matrix-bright));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.portal-subtitle {
+    font-size: 1rem;
+    margin-bottom: 30px;
+    opacity: 0.8;
+    font-style: italic;
+}
+
+.password-form {
+    margin: 30px 0;
+}
+
+.password-input {
+    width: 100%;
+    padding: 15px 20px;
+    background: rgba(0, 20, 0, 0.5);
+    border: 1px solid var(--matrix-green);
+    border-radius: var(--terminal-radius);
+    color: var(--matrix-green);
+    font-family: inherit;
+    font-size: 1.1rem;
+    text-align: center;
+    letter-spacing: 2px;
+    transition: all 0.3s ease;
+}
+
+.password-input:focus {
+    outline: none;
+    box-shadow: 0 0 20px var(--matrix-green);
+    border-color: var(--matrix-bright);
+    background: rgba(0, 30, 0, 0.7);
+}
+
+.password-input::placeholder {
+    color: rgba(0, 255, 0, 0.5);
+    letter-spacing: 1px;
+}
+
+/* =============================================================================
+   📱 SCANNER INTERFACE STYLES
+   ============================================================================= */
+.scanner-interface {
+    min-height: 100vh;
+    padding: 20px;
+    background: radial-gradient(ellipse at top, rgba(0, 50, 0, 0.3) 0%, rgba(0, 0, 0, 0.9) 100%);
+}
+
+.scanner-header {
+    text-align: center;
+    margin-bottom: 30px;
+    padding: 20px;
+}
+
+.scanner-title {
+    font-size: 2.2rem;
+    font-weight: bold;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 0 0 15px var(--matrix-green);
+}
+
+.scanner-status {
+    display: inline-block;
+    padding: 5px 15px;
+    background: rgba(0, 255, 0, 0.1);
+    border: 1px solid var(--matrix-green);
+    border-radius: 20px;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.status-connected { background: rgba(0, 255, 0, 0.2); border-color: var(--matrix-bright); }
+.status-syncing { background: rgba(255, 255, 0, 0.2); border-color: var(--warning-yellow); animation: pulse 2s infinite; }
+.status-disconnected { background: rgba(255, 0, 0, 0.2); border-color: var(--warning-red); }
+
+/* =============================================================================
+   📶 QR CODE & PAIRING SECTION
+   ============================================================================= */
+.auth-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-bottom: 30px;
+}
+
+@media (max-width: 768px) {
+    .auth-section {
+        grid-template-columns: 1fr;
+    }
+}
+
+.qr-container, .pairing-container {
+    padding: 25px;
+    text-align: center;
+}
+
+.section-title {
+    font-size: 1.3rem;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--matrix-bright);
+}
+
+.qr-code {
+    width: 250px;
+    height: 250px;
+    margin: 0 auto 20px;
+    background: white;
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+}
+
+.pairing-code {
+    font-size: 3rem;
+    font-weight: bold;
+    letter-spacing: 5px;
+    margin: 20px 0;
+    padding: 15px;
+    background: rgba(0, 20, 0, 0.5);
+    border: 2px solid var(--matrix-green);
+    border-radius: var(--terminal-radius);
+    text-shadow: 0 0 10px var(--matrix-green);
+    animation: codeGlow 2s ease-in-out infinite;
+}
+
+@keyframes codeGlow {
+    0%, 100% { box-shadow: 0 0 10px var(--matrix-green); }
+    50% { box-shadow: 0 0 25px var(--matrix-bright); }
+}
+
+/* =============================================================================
+   🤖 BOT STATUS SECTION
+   ============================================================================= */
+.bots-section {
+    margin-bottom: 30px;
+}
+
+.bots-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.bot-card {
+    padding: 20px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.bot-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0, 255, 0, 0.3);
+}
+
+.bot-card.savage-x { border-color: var(--matrix-green); }
+.bot-card.de-unknown { border-color: var(--accent-blue); }
+.bot-card.queen-rixie { border-color: var(--accent-purple); }
+
+.bot-icon {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 15px;
+    border-radius: 50%;
+    background: rgba(0, 255, 0, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    border: 2px solid;
+}
+
+.bot-name {
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.bot-status {
+    font-size: 0.9rem;
+    padding: 3px 10px;
+    border-radius: 12px;
+    display: inline-block;
+}
+
+.status-online { background: rgba(0, 255, 0, 0.2); color: var(--matrix-bright); }
+.status-offline { background: rgba(255, 0, 0, 0.2); color: var(--warning-red); }
+.status-connecting { background: rgba(255, 255, 0, 0.2); color: var(--warning-yellow); animation: pulse 1.5s infinite; }
+
+/* =============================================================================
+   🎮 BUTTONS & CONTROLS
+   ============================================================================= */
+.btn {
+    padding: 12px 25px;
+    border: 1px solid;
+    border-radius: var(--terminal-radius);
+    background: transparent;
+    color: inherit;
+    font-family: inherit;
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 0, 0.2), transparent);
+    transition: left 0.5s;
+}
+
+.btn:hover::before {
+    left: 100%;
+}
+
+.btn:hover {
+    box-shadow: 0 0 15px currentColor;
+    transform: translateY(-2px);
+}
+
+.btn-primary {
+    border-color: var(--matrix-green);
+    color: var(--matrix-green);
+}
+
+.btn-secondary {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
+
+.btn-danger {
+    border-color: var(--warning-red);
+    color: var(--warning-red);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn:disabled::before {
+    display: none;
+}
+
+/* =============================================================================
+   📊 SESSION INFO & STATS
+   ============================================================================= */
+.session-info {
+    padding: 20px;
+    margin-top: 30px;
+}
+
+.session-id {
+    font-family: 'Courier New', monospace;
+    background: rgba(0, 20, 0, 0.5);
+    padding: 15px;
+    border-radius: var(--terminal-radius);
+    border: 1px solid var(--matrix-green);
+    word-break: break-all;
+    font-size: 0.9rem;
+    margin: 15px 0;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 15px;
+    background: rgba(0, 255, 0, 0.05);
+    border: 1px solid rgba(0, 255, 0, 0.2);
+    border-radius: var(--terminal-radius);
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--matrix-bright);
+    margin-bottom: 5px;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    opacity: 0.8;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* =============================================================================
+   ⚠️ ALERTS & MESSAGES
+   ============================================================================= */
+.alert {
+    padding: 15px 20px;
+    margin: 15px 0;
+    border-radius: var(--terminal-radius);
+    border-left: 4px solid;
+    background: rgba(0, 20, 0, 0.3);
+}
+
+.alert-success {
+    border-left-color: var(--matrix-green);
+    color: var(--matrix-bright);
+}
+
+.alert-warning {
+    border-left-color: var(--warning-yellow);
+    color: var(--warning-yellow);
+}
+
+.alert-error {
+    border-left-color: var(--warning-red);
+    color: var(--warning-red);
+    animation: errorPulse 1s ease-in-out;
+}
+
+@keyframes errorPulse {
+    0%, 100% { background: rgba(255, 0, 0, 0.1); }
+    50% { background: rgba(255, 0, 0, 0.2); }
+}
+
+/* =============================================================================
+   🔄 LOADING & ANIMATIONS
+   ============================================================================= */
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(0, 255, 0, 0.3);
+    border-top: 3px solid var(--matrix-green);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.typing-animation {
+    overflow: hidden;
+    border-right: 2px solid var(--matrix-green);
+    white-space: nowrap;
+    animation: typing 3.5s steps(40, end), blink-caret 0.75s step-end infinite;
+}
+
+@keyframes typing {
+    from { width: 0; }
+    to { width: 100%; }
+}
+
+@keyframes blink-caret {
+    from, to { border-color: transparent; }
+    50% { border-color: var(--matrix-green); }
+}
+
+/* =============================================================================
+   📱 RESPONSIVE DESIGN
+   ============================================================================= */
+@media (max-width: 768px) {
+    .portal-title { font-size: 2rem; }
+    .scanner-title { font-size: 1.8rem; }
+    .auth-section { grid-template-columns: 1fr; }
+    .bots-grid { grid-template-columns: 1fr; }
+    .qr-code { width: 200px; height: 200px; }
+    .pairing-code { font-size: 2rem; letter-spacing: 3px; }
+}
+
+@media (max-width: 480px) {
+    .portal-container { padding: 20px 15px; }
+    .scanner-interface { padding: 10px; }
+    .terminal-container { margin: 10px; }
+    .btn { padding: 10px 20px; font-size: 0.9rem; }
+}
+
+/* =============================================================================
+   🎯 UTILITY CLASSES
+   ============================================================================= */
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-left { text-align: left; }
+
+.mt-10 { margin-top: 10px; }
+.mt-20 { margin-top: 20px; }
+.mt-30 { margin-top: 30px; }
+
+.mb-10 { margin-bottom: 10px; }
+.mb-20 { margin-bottom: 20px; }
+.mb-30 { margin-bottom: 30px; }
+
+.hidden { display: none; }
+.visible { display: block; }
+
+.glow { text-shadow: 0 0 10px currentColor; }
+.glow-box { box-shadow: 0 0 15px currentColor; }
+
+/* =============================================================================
+   🦅 SAVAGE BOTS FOOTER
+   ============================================================================= */
+.savage-footer {
+    text-align: center;
+    padding: 30px 20px;
+    margin-top: 40px;
+    border-top: 1px solid rgba(0, 255, 0, 0.2);
+    font-size: 0.9rem;
+    opacity: 0.7;
+}
+
+.footer-motto {
+    font-style: italic;
+    margin-top: 10px;
+    color: var(--matrix-bright);
+}
