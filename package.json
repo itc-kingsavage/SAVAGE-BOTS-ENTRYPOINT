@@ -1,0 +1,205 @@
+{
+  "name": "savage-bots-scanner",
+  "version": "1.0.0",
+  "description": "🦅 SAVAGE BOTS SCANNER - Advanced Multi-Bot WhatsApp Scanner with Hacker Theme",
+  "main": "savage-scanner.js",
+  "scripts": {
+    "start": "node savage-scanner.js",
+    "dev": "nodemon savage-scanner.js",
+    "dev:debug": "nodemon --inspect savage-scanner.js",
+    "test": "jest --verbose",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "build": "npm run build:clean && npm run build:copy",
+    "build:clean": "rm -rf dist/ && mkdir dist",
+    "build:copy": "cp -r config/ auth/ utils/ routes/ middleware/ public/ dist/",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
+    "security:audit": "npm audit --audit-level=high",
+    "security:fix": "npm audit fix",
+    "db:migrate": "node scripts/migrate-database.js",
+    "db:seed": "node scripts/seed-database.js",
+    "db:backup": "node scripts/backup-database.js",
+    "deploy:render": "npm run build && npm run security:audit",
+    "deploy:heroku": "npm run build && npm run security:audit",
+    "bot:savage-x": "node bots/savage-x-connector.js",
+    "bot:de-unknown": "node bots/de-unknown-connector.js",
+    "bot:queen-rixie": "node bots/queen-rixie-connector.js",
+    "bot:all": "concurrently \"npm run bot:savage-x\" \"npm run bot:de-unknown\" \"npm run bot:queen-rixie\"",
+    "session:cleanup": "node scripts/cleanup-sessions.js",
+    "session:stats": "node scripts/session-stats.js",
+    "health:check": "node scripts/health-check.js",
+    "docs:generate": "jsdoc -c jsdoc.json",
+    "docs:serve": "serve docs/",
+    "production": "NODE_ENV=production node savage-scanner.js",
+    "docker:build": "docker build -t savage-bots-scanner .",
+    "docker:run": "docker run -p 3000:3000 --env-file .env savage-bots-scanner"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "scanner",
+    "savage",
+    "multi-bot",
+    "baileys",
+    "automation",
+    "hacker-theme",
+    "whatsapp-web.js",
+    "websocket",
+    "mongodb",
+    "render",
+    "heroku"
+  ],
+  "author": {
+    "name": "SAVAGE BOTS TECHNOLOGY",
+    "email": "admin@savagebots.tech",
+    "url": "https://github.com/itc-kingsavage"
+  },
+  "contributors": [
+    "Ibrahim Adams <ibrahim@savagebots.tech>"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/itc-kingsavage/SAVAGE-BOTS-SCANNER.git"
+  },
+  "bugs": {
+    "url": "https://github.com/itc-kingsavage/SAVAGE-BOTS-SCANNER/issues"
+  },
+  "homepage": "https://github.com/itc-kingsavage/SAVAGE-BOTS-SCANNER#readme",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=7.0.0"
+  },
+  "dependencies": {
+    "@adiwajshing/baileys": "^5.0.0",
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2",
+    "mongoose": "^7.5.0",
+    "crypto-js": "^4.1.1",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.3.1",
+    "express-rate-limit": "^6.8.1",
+    "helmet": "^7.0.0",
+    "cors": "^2.8.5",
+    "qrcode-terminal": "^0.12.0",
+    "qrcode": "^1.5.3",
+    "pino": "^8.15.0",
+    "express-session": "^1.17.3",
+    "compression": "^1.7.4",
+    "morgan": "^1.10.0",
+    "validator": "^13.11.0",
+    "uuid": "^9.0.0",
+    "node-cron": "^3.0.2",
+    "winston": "^3.10.0",
+    "joi": "^17.9.2",
+    "axios": "^1.5.0",
+    "form-data": "^4.0.0",
+    "multer": "^1.4.5-lts.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "jest": "^29.6.2",
+    "supertest": "^6.3.3",
+    "eslint": "^8.47.0",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-import": "^2.28.1",
+    "eslint-plugin-n": "^16.0.1",
+    "eslint-plugin-promise": "^6.1.1",
+    "jsdoc": "^4.0.2",
+    "concurrently": "^8.2.0",
+    "serve": "^14.2.0",
+    "@types/node": "^20.5.0",
+    "@types/jest": "^29.5.4",
+    "@types/express": "^4.17.17",
+    "@types/cors": "^2.8.13",
+    "@types/validator": "^13.11.1",
+    "@types/uuid": "^9.0.2",
+    "@types/multer": "^1.4.7",
+    "@types/bcryptjs": "^2.4.2",
+    "@types/qrcode": "^1.5.0"
+  },
+  "peerDependencies": {
+    "node": ">=16.0.0"
+  },
+  "optionalDependencies": {
+    "bufferutil": "^4.0.7",
+    "utf-8-validate": "^5.0.10"
+  },
+  "files": [
+    "config/",
+    "auth/",
+    "utils/",
+    "routes/",
+    "middleware/",
+    "public/",
+    "bots/",
+    "scripts/",
+    "savage-scanner.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "config": {
+    "port": 3000,
+    "mongo_connection_timeout": 30000,
+    "session_timeout": 86400000,
+    "max_file_size": "10MB"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "auth/**/*.js",
+      "config/**/*.js",
+      "utils/**/*.js",
+      "middleware/**/*.js",
+      "!**/node_modules/**",
+      "!**/vendor/**"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": [
+      "text",
+      "lcov",
+      "html"
+    ]
+  },
+  "nodemonConfig": {
+    "watch": [
+      "config/",
+      "auth/",
+      "utils/",
+      "routes/",
+      "middleware/",
+      "savage-scanner.js"
+    ],
+    "ext": "js,json",
+    "ignore": [
+      "node_modules/",
+      "logs/",
+      "sessions/",
+      ".git/",
+      "coverage/"
+    ],
+    "exec": "node savage-scanner.js"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "private": true,
+  "funding": {
+    "type": "individual",
+    "url": "https://github.com/sponsors/itc-kingsavage"
+  }
+}
