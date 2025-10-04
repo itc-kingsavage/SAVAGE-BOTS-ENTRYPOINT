@@ -1,0 +1,281 @@
+# 🦅 SAVAGE BOTS SCANNER - Render.com Deployment Configuration
+# Advanced multi-bot WhatsApp scanner with hacker theme
+# "When ordinary isn't an option"
+
+# =============================================================================
+# 📋 RENDER CONFIGURATION
+# =============================================================================
+
+# Render configuration version
+version: 1
+
+# =============================================================================
+# 🌐 SERVICES CONFIGURATION
+# =============================================================================
+
+services:
+  # Main SAVAGE BOTS SCANNER Web Service
+  - type: web
+    name: savage-bots-scanner
+    env: node
+    region: ohio  # us-east-2 - Good for WhatsApp connections
+    plan: free    # Start with free, upgrade to starter for production
+    
+    # =========================================================================
+    # 📁 BUILD & DEPLOYMENT CONFIGURATION
+    # =========================================================================
+    buildCommand: |
+      echo "🦅 Building SAVAGE BOTS SCANNER..."
+      npm ci
+      npm run build
+      echo "✅ Build completed successfully"
+    
+    startCommand: |
+      echo "🚀 Starting SAVAGE BOTS SCANNER..."
+      npm start
+      
+    # =========================================================================
+    # 🔧 ENVIRONMENT CONFIGURATION
+    # =========================================================================
+    envVars:
+      # Required Security Variables
+      - key: NODE_ENV
+        value: production
+        
+      - key: PORT
+        value: 10000  # Render uses port 10000
+      
+      - key: HOST
+        value: 0.0.0.0
+        
+      - key: TRUST_PROXY
+        value: true
+        
+      # Security Variables (Set in Render Dashboard)
+      - key: SCANNER_PASSWORD
+        sync: false  # Must be set manually in dashboard
+        
+      - key: SESSION_ENCRYPTION_KEY
+        sync: false  # Must be set manually in dashboard
+        
+      - key: MONGODB_URI
+        sync: false  # Must be set manually in dashboard
+        
+      # Optional Configuration
+      - key: LOG_LEVEL
+        value: info
+        
+      - key: ENABLE_DEBUG_LOGS
+        value: false
+        
+      - key: RENDER
+        value: true
+        
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: savage-bots-scanner
+          property: url
+    
+    # =========================================================================
+    # ⚙️ PERFORMANCE & SCALING
+    # =========================================================================
+    autoDeploy: true  # Auto-deploy on git push
+    disk:
+      name: sessions
+      mountPath: /opt/render/project/src/sessions
+      sizeGB: 1
+    
+    # Health Check
+    healthCheckPath: /health
+    initialDelaySec: 30  # Give app time to start
+    timeoutSec: 10
+    
+    # Resource Allocation (Free tier limits)
+    numInstances: 1
+    
+    # =========================================================================
+    # 🔄 ADVANCED CONFIGURATION
+    # =========================================================================
+    buildFilter:
+      paths:
+        - package.json
+        - package-lock.json
+        - savage-scanner.js
+        - config/**
+        - auth/**
+        - utils/**
+        - routes/**
+        - middleware/**
+        - public/**
+    
+    # Dependency caching for faster builds
+    buildCache:
+      paths:
+        - node_modules
+
+# =============================================================================
+# 🗄️ DATABASE CONFIGURATION (MongoDB Atlas)
+# =============================================================================
+
+# Note: We use MongoDB Atlas instead of Render's managed databases
+# for better WhatsApp session persistence and global availability
+
+# =============================================================================
+# 🔐 ENVIRONMENT VARIABLES DOCUMENTATION
+# =============================================================================
+
+# REQUIRED ENVIRONMENT VARIABLES (Set in Render Dashboard):
+#
+# SCANNER_PASSWORD: Your secure scanner access password
+#   Example: $S.Bots_2022@_
+#
+# SESSION_ENCRYPTION_KEY: 64-character hex encryption key
+#   Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+#   Example: 4a7e2f8c1d9b3e6a5f8c2d1e7b4a9f3c6d8e1a5b9f2c7e4d8a3b6f9c1e5d2a7
+#
+# MONGODB_URI: MongoDB Atlas connection string
+#   Format: mongodb+srv://username:password@cluster.mongodb.net/savage-scanner
+#   Example: mongodb+srv://savagebots:password@cluster0.xxxxx.mongodb.net/savage-scanner
+
+# =============================================================================
+# 📊 MONITORING & OBSERVABILITY
+# =============================================================================
+
+# Render provides built-in:
+# - Log streaming
+# - Metrics monitoring
+# - Auto-scaling
+# - Health checks
+# - SSL certificates
+
+# =============================================================================
+# 🚀 DEPLOYMENT WORKFLOW
+# =============================================================================
+
+# 1. Connect GitHub repository to Render
+# 2. Set environment variables in Render dashboard
+# 3. Push to main branch to trigger auto-deploy
+# 4. Monitor deployment in Render dashboard
+# 5. Access scanner at: https://savage-bots-scanner.onrender.com
+
+# =============================================================================
+# 🔧 TROUBLESHOOTING
+# =============================================================================
+
+# Common issues and solutions:
+
+# Port Binding:
+# - Render uses port 10000 internally
+# - App must bind to 0.0.0.0:10000
+
+# Session Persistence:
+# - Use mounted disk for session storage
+# - Sessions persist between deploys
+
+# WhatsApp Connection:
+# - Ensure proper browser configuration
+# - Use stable MongoDB Atlas connection
+# - Monitor for rate limiting
+
+# =============================================================================
+# 📈 SCALING CONFIGURATION (For future upgrades)
+# =============================================================================
+
+# Uncomment for production scaling:
+
+# plan: starter
+# numInstances: 2
+# scaling:
+#   minInstances: 1
+#   maxInstances: 3
+#   targetMemoryPercent: 80
+#   targetCPUPercent: 80
+
+# =============================================================================
+# 🔄 CRON JOBS (For maintenance tasks)
+# =============================================================================
+
+# Uncomment to add scheduled tasks:
+
+# - type: cron
+#   name: session-cleanup
+#   schedule: "0 2 * * *"  # Daily at 2 AM
+#   command: npm run session:cleanup
+#   env: node
+
+# - type: cron  
+#   name: database-backup
+#   schedule: "0 3 * * *"  # Daily at 3 AM
+#   command: npm run db:backup
+#   env: node
+
+# =============================================================================
+# 🛡️ SECURITY CONFIGURATION
+# =============================================================================
+
+# Security headers are handled by the application middleware
+# SSL is automatically provided by Render
+# Environment variables are encrypted at rest
+
+# =============================================================================
+# 🌍 NETWORK CONFIGURATION
+# =============================================================================
+
+# Render provides:
+# - Automatic SSL certificates
+# - Custom domains
+# - HTTP/2 support
+# - Global CDN
+# - DDoS protection
+
+# =============================================================================
+# 📝 DEPLOYMENT NOTES
+# =============================================================================
+
+# First Time Setup:
+# 1. Create Render account
+# 2. Connect GitHub repository
+# 3. Create new Web Service
+# 4. Use this render.yaml configuration
+# 5. Set required environment variables
+# 6. Deploy
+
+# Required Permissions:
+# - Read access to GitHub repository
+# - Write access for auto-deploys
+# - MongoDB Atlas network access
+
+# Monitoring:
+# - Check Render dashboard for deployment status
+# - Monitor logs for any issues
+# - Set up alerts for downtime
+
+# =============================================================================
+# 🎯 SUCCESS METRICS
+# =============================================================================
+
+# Successful deployment indicators:
+# - Health check passes (/health endpoint)
+# - WhatsApp connection established
+# - MongoDB connection active
+# - WebSocket connections working
+# - Bot connections stable
+
+# =============================================================================
+# 🔗 USEFUL LINKS
+# =============================================================================
+
+# Render Dashboard: https://dashboard.render.com
+# MongoDB Atlas: https://cloud.mongodb.com
+# GitHub Repository: https://github.com/itc-kingsavage/SAVAGE-BOTS-SCANNER
+# Scanner URL: https://savage-bots-scanner.onrender.com
+
+# =============================================================================
+# 🦅 SAVAGE BOTS TECHNOLOGY
+# =============================================================================
+
+# "When ordinary isn't an option"
+# Advanced WhatsApp automation platform
+# Multi-bot support with real-time messaging
+# Enterprise-grade security and monitoring
