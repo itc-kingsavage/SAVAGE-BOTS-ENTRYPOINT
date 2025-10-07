@@ -101,7 +101,7 @@ const validateSession = (options = {}) => {
 
             // Bot-specific validation
             if (botSpecific && session.botName) {
-                const botValidation = validateBotSession(session);
+                const botValidation = validateBotSessionFunction(session);
                 if (!botValidation.valid) {
                     logSessionEvent('BOT_VALIDATION_FAILED', clientIP, `Bot session validation failed: ${botValidation.reason}`, {
                         sessionId: sessionId,
@@ -149,7 +149,7 @@ const validateSession = (options = {}) => {
  * 🤖 Bot session validation middleware
  * Specialized validation for bot-specific sessions
  */
-const validateBotSession = (botName) => {
+const validateBotSessionMiddleware = (botName) => {
     return async (req, res, next) => {
         const sessionId = extractSessionId(req);
         const clientIP = getClientIP(req);
@@ -481,9 +481,9 @@ async function checkSessionIntegrity(session) {
 }
 
 /**
- * 🤖 Validate bot session
+ * 🤖 Validate bot session (HELPER FUNCTION - renamed to avoid conflict)
  */
-function validateBotSession(session) {
+function validateBotSessionFunction(session) {
     const validBots = ['SAVAGE-X', 'DE-UKNOWN-BOT', 'QUEEN-RIXIE', 'SCANNER'];
     
     if (!session.botName) {
@@ -574,7 +574,7 @@ function sendSessionError(res, statusCode, message, code, additionalData = {}) {
 module.exports = {
     // Core session validation
     validateSession,
-    validateBotSession,
+    validateBotSession: validateBotSessionMiddleware, // Fixed: renamed to avoid conflict
     validateWebSocketSession,
     
     // Session management utilities
@@ -588,7 +588,7 @@ module.exports = {
         getClientIP,
         isValidSessionIdFormat,
         checkSessionIntegrity,
-        validateBotSession,
+        validateBotSession: validateBotSessionFunction, // Fixed: renamed to avoid conflict
         checkBotSessionHealth,
         logSessionEvent,
         sendSessionError
