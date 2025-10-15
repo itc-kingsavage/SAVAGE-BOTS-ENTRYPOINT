@@ -55,14 +55,15 @@ class SavageBotsScanner {
             // Initialize core systems in sequence
             await this.initializeDatabase();
             await this.setupExpress();
-            await this.initializeWhatsApp();
             await this.setupWebSocket();
+            await this.initializeWhatsApp();
             
             this.startServer();
             
         } catch (error) {
             console.error('💥 [SCANNER] Initialization failed:', error);
-            process.exit(1);
+            // Don't exit - allow scanner to run without WhatsApp
+            console.log('⚠️ [SCANNER] Running in limited mode - WhatsApp not available');
         }
     }
 
@@ -76,7 +77,6 @@ class SavageBotsScanner {
             console.log('✅ [SCANNER] MongoDB connected successfully');
         } catch (error) {
             console.error('❌ [SCANNER] Database connection failed:', error.message);
-            // Continue without database - sessions won't persist
             console.warn('⚠️ [SCANNER] Running in limited mode without database');
         }
     }
@@ -158,17 +158,17 @@ class SavageBotsScanner {
     }
 
     /**
-     * 📱 Initialize WhatsApp connection (Baileys v5+)
+     * 📱 Initialize WhatsApp connection (Baileys v5+ COMPATIBLE)
      */
     async initializeWhatsApp() {
         try {
             console.log('📱 [SCANNER] Initializing WhatsApp connection...');
             
             // ✅ CORRECT Baileys v5+ import
-            const { default: makeWASocket, useSingleFileAuthState, DisconnectReason } = require('@adiwajshing/baileys');
+            const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
             
-            // Use file-based auth state
-            const { state, saveState } = useSingleFileAuthState('./auth_info.json');
+            // Use multi-file auth state (more reliable)
+            const { state, saveCreds } = await useMultiFileAuthState('./savage_auth');
             
             this.client = makeWASocket({
                 // Baileys configuration for anti-ban
@@ -178,30 +178,36 @@ class SavageBotsScanner {
                 markOnlineOnConnect: WHATSAPP_CONFIG.BAILEYS.MARK_ONLINE_ON_CONNECT,
                 syncFullHistory: WHATSAPP_CONFIG.BAILEYS.SYNC_FULL_HISTORY,
                 logger: { level: 'fatal' }, // Reduce logging
-                version: WHATSAPP_CONFIG.BAILEYS.VERSION
+                version: WHATSAPP_CONFIG.BAILEYS.VERSION,
+                // Additional anti-ban settings
+                retryRequestDelayMs: 3000,
+                maxRetries: 5,
+                connectTimeoutMs: 30000
             });
 
-        // Save auth state updates
-        this.client.ev.on('creds.update', saveState);
+            // Save auth state updates
+            this.client.ev.on('creds.update', saveCreds);
 
-        this.setupWhatsAppEvents();
-        
-        console.log('✅ [SCANNER] WhatsApp client initialized');
-    } catch (error) {
-        console.error('❌ [SCANNER] WhatsApp initialization failed:', error);
-        throw error;
+            this.setupWhatsAppEvents();
+            
+            console.log('✅ [SCANNER] WhatsApp client initialized');
+        } catch (error) {
+            console.error('❌ [SCANNER] WhatsApp initialization failed:', error);
+            throw error;
+        }
     }
-}
 
     /**
      * 📨 Setup WhatsApp event handlers (Baileys v5+)
      */
     setupWhatsAppEvents() {
-        const { DisconnectReason } = require('@adiwajshing/baileys');
+        const { DisconnectReason } = require('@whiskeysockets/baileys');
 
         // Connection updates
         this.client.ev.on('connection.update', (update) => {
             const { connection, lastDisconnect, qr } = update;
+            
+            console.log(`📡 [WHATSAPP] Connection update: ${connection}`);
             
             // Handle QR code
             if (qr) {
@@ -211,8 +217,10 @@ class SavageBotsScanner {
             
             // Handle connection status
             if (connection === 'close') {
-                const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-                console.log(`🔌 [SCANNER] Connection closed due to ${lastDisconnect?.error?.output?.statusCode}, reconnecting: ${shouldReconnect}`);
+                const statusCode = lastDisconnect?.error?.output?.statusCode;
+                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+                
+                console.log(`🔌 [SCANNER] Connection closed (Status: ${statusCode}), reconnecting: ${shouldReconnect}`);
                 
                 this.io.emit('status_update', {
                     status: 'disconnected',
@@ -220,7 +228,10 @@ class SavageBotsScanner {
                 });
                 
                 if (shouldReconnect) {
-                    this.initializeWhatsApp();
+                    setTimeout(() => {
+                        console.log('🔄 [SCANNER] Attempting reconnect...');
+                        this.initializeWhatsApp();
+                    }, 5000);
                 }
             } else if (connection === 'open') {
                 console.log('🔗 [SCANNER] WhatsApp connection opened');
@@ -233,31 +244,68 @@ class SavageBotsScanner {
                 
                 // Generate session ID and send ready event
                 this.handleReady();
+            } else if (connection === 'connecting') {
+                console.log('⏳ [SCANNER] Connecting to WhatsApp...');
+                this.io.emit('status_update', {
+                    status: 'connecting',
+                    message: 'Connecting to WhatsApp...'
+                });
             }
         });
 
         // Message Handling
         this.client.ev.on('messages.upsert', async (m) => {
-            const message = m.messages[0];
-            if (!message || !message.message || message.key.remoteJid === 'status@broadcast') return;
-            
-            // Broadcast message to all connected bots
-            this.io.emit('whatsapp_message', {
-                from: message.key.remoteJid,
-                body: message.message.conversation || 
-                      message.message.extendedTextMessage?.text || 
-                      message.message.imageMessage?.caption ||
-                      '[Media Message]',
-                timestamp: message.messageTimestamp,
-                type: this.getMessageType(message),
-                messageId: message.key.id
-            });
+            try {
+                const message = m.messages[0];
+                if (!message || !message.message || message.key.remoteJid === 'status@broadcast') return;
+                
+                // Extract message content
+                const messageContent = this.extractMessageContent(message);
+                
+                if (messageContent) {
+                    // Broadcast message to all connected bots
+                    this.io.emit('whatsapp_message', {
+                        from: message.key.remoteJid,
+                        body: messageContent,
+                        timestamp: message.messageTimestamp,
+                        type: this.getMessageType(message),
+                        messageId: message.key.id,
+                        isGroup: message.key.remoteJid.includes('@g.us')
+                    });
+                    
+                    console.log(`📥 [SCANNER] Message received from ${message.key.remoteJid}: ${messageContent.substring(0, 50)}...`);
+                }
+            } catch (error) {
+                console.error('❌ [SCANNER] Message processing error:', error);
+            }
         });
 
         // Credentials update
         this.client.ev.on('creds.update', () => {
             console.log('🔐 [SCANNER] Credentials updated');
         });
+    }
+
+    /**
+     * 📝 Extract message content from different message types
+     */
+    extractMessageContent(message) {
+        const msg = message.message;
+        
+        if (msg.conversation) return msg.conversation;
+        if (msg.extendedTextMessage?.text) return msg.extendedTextMessage.text;
+        if (msg.imageMessage?.caption) return msg.imageMessage.caption;
+        if (msg.videoMessage?.caption) return msg.videoMessage.caption;
+        if (msg.documentMessage?.caption) return msg.documentMessage.caption;
+        
+        // Handle media messages
+        if (msg.imageMessage) return '[Image Message]';
+        if (msg.videoMessage) return '[Video Message]';
+        if (msg.audioMessage) return '[Audio Message]';
+        if (msg.documentMessage) return '[Document Message]';
+        if (msg.stickerMessage) return '[Sticker Message]';
+        
+        return '[Unsupported Message Type]';
     }
 
     /**
@@ -278,7 +326,13 @@ class SavageBotsScanner {
                 timestamp: Date.now()
             });
             
-            console.log(`🔢 [SCANNER] Pairing code: ${this.currentPairingCode}`);
+            console.log(`🔢 [SCANNER] QR Code generated - Pairing code: ${this.currentPairingCode}`);
+            
+            // Also update status
+            this.io.emit('status_update', {
+                status: 'qr_ready',
+                message: 'Scan QR code to connect WhatsApp'
+            });
         } catch (error) {
             console.error('❌ [SCANNER] QR code generation failed:', error);
         }
@@ -288,36 +342,52 @@ class SavageBotsScanner {
      * 🚀 Handle ready state
      */
     async handleReady() {
-        console.log('🚀 [SCANNER] WhatsApp client is READY!');
-        
-        // Generate session ID for bots
-        this.sessionId = generateSessionId();
-        
-        // Send introduction messages
-        await this.sendIntroMessages();
-        
-        // Broadcast ready state
-        this.io.emit('ready', {
-            status: 'connected',
-            sessionId: this.sessionId,
-            phoneNumber: this.client.user?.id.split(':')[0] || 'unknown',
-            message: 'SAVAGE BOTS SCANNER is now active!',
-            timestamp: new Date()
-        });
-        
-        console.log(`🆔 [SCANNER] Session ID: ${this.sessionId}`);
+        try {
+            console.log('🚀 [SCANNER] WhatsApp client is READY!');
+            
+            // Clear QR data
+            this.currentQR = null;
+            this.currentPairingCode = null;
+            
+            // Generate session ID for bots
+            this.sessionId = generateSessionId();
+            
+            // Send introduction messages
+            await this.sendIntroMessages();
+            
+            // Broadcast ready state
+            this.io.emit('ready', {
+                status: 'connected',
+                sessionId: this.sessionId,
+                phoneNumber: this.client.user?.id?.replace(/:\d+$/, '') || 'unknown',
+                message: 'SAVAGE BOTS SCANNER is now active!',
+                timestamp: new Date()
+            });
+            
+            console.log(`🆔 [SCANNER] Session ID generated: ${this.sessionId}`);
+            console.log(`📱 [SCANNER] Connected as: ${this.client.user?.id?.replace(/:\d+$/, '') || 'unknown'}`);
+            
+        } catch (error) {
+            console.error('❌ [SCANNER] Ready state handling failed:', error);
+        }
     }
 
     /**
      * 📧 Get message type
      */
     getMessageType(message) {
-        if (message.message.conversation) return 'text';
-        if (message.message.extendedTextMessage) return 'text';
-        if (message.message.imageMessage) return 'image';
-        if (message.message.videoMessage) return 'video';
-        if (message.message.audioMessage) return 'audio';
-        if (message.message.documentMessage) return 'document';
+        const msg = message.message;
+        
+        if (msg.conversation) return 'text';
+        if (msg.extendedTextMessage) return 'text';
+        if (msg.imageMessage) return 'image';
+        if (msg.videoMessage) return 'video';
+        if (msg.audioMessage) return 'audio';
+        if (msg.documentMessage) return 'document';
+        if (msg.stickerMessage) return 'sticker';
+        if (msg.contactMessage) return 'contact';
+        if (msg.locationMessage) return 'location';
+        
         return 'unknown';
     }
 
@@ -328,12 +398,12 @@ class SavageBotsScanner {
         try {
             const introMessages = MESSAGES.INTRODUCTION;
             
-            // Get all chats and send to the first available chat
-            const chats = await this.client.getChats();
-            if (chats.length > 0) {
+            // Get user's info to send to their own chat
+            const userJid = this.client.user?.id;
+            if (userJid) {
                 for (const message of introMessages) {
-                    await this.client.sendMessage(chats[0].id, { text: message });
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    await this.client.sendMessage(userJid, { text: message });
+                    await new Promise(resolve => setTimeout(resolve, 1500)); // Delay between messages
                 }
                 console.log('✅ [SCANNER] Introduction messages sent');
             }
@@ -349,22 +419,30 @@ class SavageBotsScanner {
         this.io.on('connection', (socket) => {
             console.log(`🤖 [SCANNER] New client connected: ${socket.id}`);
             
-            // Send current QR if available
-            if (this.currentQR) {
+            // Send current status immediately
+            if (this.isAuthenticated && this.sessionId) {
+                socket.emit('ready', {
+                    status: 'connected',
+                    sessionId: this.sessionId,
+                    phoneNumber: this.client.user?.id?.replace(/:\d+$/, '') || 'unknown',
+                    message: 'Scanner is active and ready'
+                });
+            } else if (this.currentQR) {
+                // Send QR code if available
                 socket.emit('qr_data', {
                     qrImage: this.currentQR,
                     pairingCode: this.currentPairingCode,
                     timestamp: Date.now()
                 });
-            }
-            
-            // Send current status
-            if (this.isAuthenticated && this.sessionId) {
-                socket.emit('ready', {
-                    status: 'connected',
-                    sessionId: this.sessionId,
-                    phoneNumber: this.client.user?.id.split(':')[0] || 'unknown',
-                    message: 'Scanner is active'
+                socket.emit('status_update', {
+                    status: 'qr_ready',
+                    message: 'Scan QR code to connect WhatsApp'
+                });
+            } else {
+                // No connection yet
+                socket.emit('status_update', {
+                    status: 'disconnected',
+                    message: 'Waiting for WhatsApp connection...'
                 });
             }
 
@@ -376,11 +454,21 @@ class SavageBotsScanner {
                     this.connectedBots.add(botName);
                     console.log(`✅ [SCANNER] Bot connected: ${botName}`);
                     
-                    // Broadcast bot status
+                    // Broadcast bot status to all clients
                     this.io.emit('bot_status', {
                         botName: botName,
                         status: 'online',
                         lastSeen: new Date()
+                    });
+                    
+                    socket.emit('bot_registered', {
+                        success: true,
+                        message: `Bot ${botName} registered successfully`
+                    });
+                } else {
+                    socket.emit('bot_registered', {
+                        success: false,
+                        error: 'Invalid session ID'
                     });
                 }
             });
@@ -393,10 +481,23 @@ class SavageBotsScanner {
                     if (this.client && this.isAuthenticated) {
                         await this.client.sendMessage(chatId, { text: message });
                         console.log(`📤 [SCANNER] Message sent by ${botName} to ${chatId}`);
+                        
+                        socket.emit('message_sent', {
+                            success: true,
+                            messageId: Date.now().toString()
+                        });
+                    } else {
+                        socket.emit('message_sent', {
+                            success: false,
+                            error: 'WhatsApp not connected'
+                        });
                     }
                 } catch (error) {
                     console.error('❌ [SCANNER] Message send failed:', error);
-                    socket.emit('error', { message: 'Failed to send message' });
+                    socket.emit('message_sent', {
+                        success: false,
+                        error: 'Failed to send message: ' + error.message
+                    });
                 }
             });
 
@@ -409,9 +510,20 @@ class SavageBotsScanner {
                 socket.emit('auth_result', result);
             });
 
+            // Handle status requests
+            socket.on('get_status', () => {
+                const status = {
+                    whatsapp: this.isAuthenticated ? 'connected' : 'disconnected',
+                    sessionId: this.sessionId,
+                    connectedBots: Array.from(this.connectedBots),
+                    timestamp: new Date()
+                };
+                socket.emit('status', status);
+            });
+
             // Handle disconnect
-            socket.on('disconnect', () => {
-                console.log(`🔌 [SCANNER] Client disconnected: ${socket.id}`);
+            socket.on('disconnect', (reason) => {
+                console.log(`🔌 [SCANNER] Client disconnected: ${socket.id} (Reason: ${reason})`);
             });
         });
 
@@ -431,7 +543,7 @@ class SavageBotsScanner {
             console.log('🦅 ============================================================');
             console.log(`📍 Server running on: http://${host}:${port}`);
             console.log('🔐 Password protected access');
-            console.log('📱 WhatsApp scanner: WAITING FOR QR');
+            console.log('📱 WhatsApp scanner: INITIALIZED');
             console.log('🤖 Bots supported: SAVAGE-X, DE-UKNOWN-BOT, QUEEN-RIXIE');
             console.log(`🦅 ${SCANNER_IDENTITY.MOTTO}`);
             console.log('🦅 ============================================================');
@@ -445,12 +557,19 @@ class SavageBotsScanner {
         console.log('🛑 [SCANNER] Shutting down gracefully...');
         
         if (this.client) {
-            await this.client.logout();
-            await this.client.end(new Error('Shutdown'));
+            try {
+                await this.client.logout();
+                await this.client.end(new Error('Shutdown'));
+                console.log('✅ [SCANNER] WhatsApp client disconnected');
+            } catch (error) {
+                console.warn('⚠️ [SCANNER] Error during WhatsApp shutdown:', error.message);
+            }
         }
         
         if (this.server) {
-            this.server.close();
+            this.server.close(() => {
+                console.log('✅ [SCANNER] HTTP server closed');
+            });
         }
         
         process.exit(0);
@@ -459,11 +578,13 @@ class SavageBotsScanner {
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
+    console.log('\n🛑 Received SIGINT - Shutting down...');
     const scanner = global.savageScanner;
     if (scanner) scanner.shutdown();
 });
 
 process.on('SIGTERM', () => {
+    console.log('\n🛑 Received SIGTERM - Shutting down...');
     const scanner = global.savageScanner;
     if (scanner) scanner.shutdown();
 });
