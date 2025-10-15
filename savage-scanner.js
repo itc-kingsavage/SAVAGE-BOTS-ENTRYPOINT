@@ -1,7 +1,7 @@
 /**
  * 🦅 SAVAGE BOTS SCANNER - Main Server File
  * Multi-bot WhatsApp scanner with hacker theme
- * Fixed Baileys v5+ compatibility
+ * COMPATIBLE with Baileys v6+
  */
 
 const express = require('express');
@@ -9,7 +9,6 @@ const socketIo = require('socket.io');
 const http = require('http');
 const path = require('path');
 const qrcode = require('qrcode');
-const fs = require('fs').promises;
 
 // Core systems
 const savageDatabase = require('./config/database');
@@ -35,6 +34,7 @@ class SavageBotsScanner {
         this.currentPairingCode = null;
         this.sessionId = null;
         this.connectedBots = new Set();
+        this.whatsappAvailable = false;
         
         this.initializeScanner();
     }
@@ -56,14 +56,26 @@ class SavageBotsScanner {
             await this.initializeDatabase();
             await this.setupExpress();
             await this.setupWebSocket();
-            await this.initializeWhatsApp();
             
+            // Start server FIRST
             this.startServer();
+            
+            // Then initialize WhatsApp (non-blocking)
+            this.initializeWhatsApp().catch(error => {
+                console.error('❌ [SCANNER] WhatsApp initialization failed, running in limited mode:', error.message);
+                this.whatsappAvailable = false;
+                
+                // Still broadcast status so frontend knows
+                this.io.emit('status_update', {
+                    status: 'whatsapp_unavailable',
+                    message: 'WhatsApp connection failed - Scanner running in limited mode'
+                });
+            });
             
         } catch (error) {
             console.error('💥 [SCANNER] Initialization failed:', error);
             // Don't exit - allow scanner to run without WhatsApp
-            console.log('⚠️ [SCANNER] Running in limited mode - WhatsApp not available');
+            console.log('⚠️ [SCANNER] Running in limited mode - Core systems available');
         }
     }
 
@@ -77,7 +89,7 @@ class SavageBotsScanner {
             console.log('✅ [SCANNER] MongoDB connected successfully');
         } catch (error) {
             console.error('❌ [SCANNER] Database connection failed:', error.message);
-            console.warn('⚠️ [SCANNER] Running in limited mode without database');
+            console.warn('⚠️ [SCANNER] Running without database persistence');
         }
     }
 
@@ -137,49 +149,65 @@ class SavageBotsScanner {
             }
         });
 
-        // QR code endpoint
-        this.app.get('/qr-code', async (req, res) => {
-            if (this.currentQR) {
-                res.json({ qrCode: this.currentQR });
-            } else {
-                res.json({ error: 'QR code not available' });
-            }
-        });
-
         // Health check
         this.app.get('/health', (req, res) => {
             res.json({
                 status: 'operational',
                 version: SCANNER_IDENTITY.VERSION,
                 platform: DEPLOYMENT.getCurrentPlatform().NAME,
+                whatsapp: this.whatsappAvailable,
+                timestamp: new Date()
+            });
+        });
+
+        // Status endpoint
+        this.app.get('/status', (req, res) => {
+            res.json({
+                scanner: 'running',
+                whatsapp: this.whatsappAvailable,
+                authenticated: this.isAuthenticated,
+                sessionId: this.sessionId,
+                connectedBots: Array.from(this.connectedBots),
                 timestamp: new Date()
             });
         });
     }
 
     /**
-     * 📱 Initialize WhatsApp connection (Baileys v5+ COMPATIBLE)
+     * 📱 Initialize WhatsApp connection (COMPATIBLE with Baileys v6+)
      */
     async initializeWhatsApp() {
         try {
             console.log('📱 [SCANNER] Initializing WhatsApp connection...');
             
-            // ✅ CORRECT Baileys v5+ import
+            // ✅ COMPATIBLE Baileys v6+ import with proper logger
             const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
             
-            // Use multi-file auth state (more reliable)
+            // Use multi-file auth state
             const { state, saveCreds } = await useMultiFileAuthState('./savage_auth');
             
+            // ✅ FIXED: Proper logger configuration for Baileys v6+
+            const logger = {
+                level: 'silent', // Reduce logging for anti-ban
+                trace: () => {},
+                debug: () => {},
+                info: () => {},
+                warn: () => {},
+                error: () => {},
+                fatal: () => {},
+                child: () => logger // ✅ FIX: Add child method that returns logger
+            };
+
             this.client = makeWASocket({
-                // Baileys configuration for anti-ban
-                printQRInTerminal: false,
+                // Baileys configuration
                 auth: state,
+                logger: logger, // ✅ Use our fixed logger
+                printQRInTerminal: false,
                 browser: WHATSAPP_CONFIG.BAILEYS.BROWSER,
                 markOnlineOnConnect: WHATSAPP_CONFIG.BAILEYS.MARK_ONLINE_ON_CONNECT,
                 syncFullHistory: WHATSAPP_CONFIG.BAILEYS.SYNC_FULL_HISTORY,
-                logger: { level: 'fatal' }, // Reduce logging
                 version: WHATSAPP_CONFIG.BAILEYS.VERSION,
-                // Additional anti-ban settings
+                // Additional settings
                 retryRequestDelayMs: 3000,
                 maxRetries: 5,
                 connectTimeoutMs: 30000
@@ -190,15 +218,18 @@ class SavageBotsScanner {
 
             this.setupWhatsAppEvents();
             
-            console.log('✅ [SCANNER] WhatsApp client initialized');
+            this.whatsappAvailable = true;
+            console.log('✅ [SCANNER] WhatsApp client initialized successfully');
+            
         } catch (error) {
-            console.error('❌ [SCANNER] WhatsApp initialization failed:', error);
+            console.error('❌ [SCANNER] WhatsApp initialization failed:', error.message);
+            this.whatsappAvailable = false;
             throw error;
         }
     }
 
     /**
-     * 📨 Setup WhatsApp event handlers (Baileys v5+)
+     * 📨 Setup WhatsApp event handlers
      */
     setupWhatsAppEvents() {
         const { DisconnectReason } = require('@whiskeysockets/baileys');
@@ -230,12 +261,13 @@ class SavageBotsScanner {
                 if (shouldReconnect) {
                     setTimeout(() => {
                         console.log('🔄 [SCANNER] Attempting reconnect...');
-                        this.initializeWhatsApp();
+                        this.initializeWhatsApp().catch(console.error);
                     }, 5000);
                 }
             } else if (connection === 'open') {
                 console.log('🔗 [SCANNER] WhatsApp connection opened');
                 this.isAuthenticated = true;
+                this.whatsappAvailable = true;
                 
                 this.io.emit('status_update', {
                     status: 'connected', 
@@ -273,7 +305,7 @@ class SavageBotsScanner {
                         isGroup: message.key.remoteJid.includes('@g.us')
                     });
                     
-                    console.log(`📥 [SCANNER] Message received from ${message.key.remoteJid}: ${messageContent.substring(0, 50)}...`);
+                    console.log(`📥 [SCANNER] Message received from ${message.key.remoteJid}`);
                 }
             } catch (error) {
                 console.error('❌ [SCANNER] Message processing error:', error);
@@ -403,7 +435,7 @@ class SavageBotsScanner {
             if (userJid) {
                 for (const message of introMessages) {
                     await this.client.sendMessage(userJid, { text: message });
-                    await new Promise(resolve => setTimeout(resolve, 1500)); // Delay between messages
+                    await new Promise(resolve => setTimeout(resolve, 1500));
                 }
                 console.log('✅ [SCANNER] Introduction messages sent');
             }
@@ -420,6 +452,16 @@ class SavageBotsScanner {
             console.log(`🤖 [SCANNER] New client connected: ${socket.id}`);
             
             // Send current status immediately
+            const status = {
+                scanner: 'running',
+                whatsapp: this.whatsappAvailable,
+                authenticated: this.isAuthenticated,
+                hasQr: !!this.currentQR,
+                sessionId: this.sessionId
+            };
+            
+            socket.emit('scanner_status', status);
+
             if (this.isAuthenticated && this.sessionId) {
                 socket.emit('ready', {
                     status: 'connected',
@@ -434,16 +476,6 @@ class SavageBotsScanner {
                     pairingCode: this.currentPairingCode,
                     timestamp: Date.now()
                 });
-                socket.emit('status_update', {
-                    status: 'qr_ready',
-                    message: 'Scan QR code to connect WhatsApp'
-                });
-            } else {
-                // No connection yet
-                socket.emit('status_update', {
-                    status: 'disconnected',
-                    message: 'Waiting for WhatsApp connection...'
-                });
             }
 
             // Handle bot registration
@@ -454,7 +486,6 @@ class SavageBotsScanner {
                     this.connectedBots.add(botName);
                     console.log(`✅ [SCANNER] Bot connected: ${botName}`);
                     
-                    // Broadcast bot status to all clients
                     this.io.emit('bot_status', {
                         botName: botName,
                         status: 'online',
@@ -496,7 +527,7 @@ class SavageBotsScanner {
                     console.error('❌ [SCANNER] Message send failed:', error);
                     socket.emit('message_sent', {
                         success: false,
-                        error: 'Failed to send message: ' + error.message
+                        error: 'Failed to send message'
                     });
                 }
             });
@@ -513,7 +544,9 @@ class SavageBotsScanner {
             // Handle status requests
             socket.on('get_status', () => {
                 const status = {
-                    whatsapp: this.isAuthenticated ? 'connected' : 'disconnected',
+                    scanner: 'running',
+                    whatsapp: this.whatsappAvailable,
+                    authenticated: this.isAuthenticated,
                     sessionId: this.sessionId,
                     connectedBots: Array.from(this.connectedBots),
                     timestamp: new Date()
@@ -534,7 +567,7 @@ class SavageBotsScanner {
      * 🚀 Start the server
      */
     startServer() {
-        const port = SERVER_CONFIG.PORT;
+        const port = process.env.PORT || SERVER_CONFIG.PORT;
         const host = SERVER_CONFIG.HOST;
         
         this.server.listen(port, host, () => {
@@ -542,9 +575,9 @@ class SavageBotsScanner {
             console.log('🦅 SAVAGE BOTS SCANNER - OPERATIONAL');
             console.log('🦅 ============================================================');
             console.log(`📍 Server running on: http://${host}:${port}`);
-            console.log('🔐 Password protected access');
-            console.log('📱 WhatsApp scanner: INITIALIZED');
-            console.log('🤖 Bots supported: SAVAGE-X, DE-UKNOWN-BOT, QUEEN-RIXIE');
+            console.log(`🔐 Password protected: http://${host}:${port}/password`);
+            console.log(`📱 Scanner interface: http://${host}:${port}/scanner`);
+            console.log(`🤖 Bots supported: SAVAGE-X, DE-UKNOWN-BOT, QUEEN-RIXIE`);
             console.log(`🦅 ${SCANNER_IDENTITY.MOTTO}`);
             console.log('🦅 ============================================================');
         });
@@ -569,10 +602,11 @@ class SavageBotsScanner {
         if (this.server) {
             this.server.close(() => {
                 console.log('✅ [SCANNER] HTTP server closed');
+                process.exit(0);
             });
+        } else {
+            process.exit(0);
         }
-        
-        process.exit(0);
     }
 }
 
