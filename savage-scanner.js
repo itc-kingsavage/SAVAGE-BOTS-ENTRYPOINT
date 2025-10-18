@@ -35,6 +35,7 @@ class SavageBotsScanner {
         this.sessionId = null;
         this.connectedBots = new Set();
         this.whatsappAvailable = false;
+        this.currentPhoneNumber = null; // ✅ ADDED: Phone number storage
         
         this.initializeScanner();
     }
@@ -168,6 +169,7 @@ class SavageBotsScanner {
                 authenticated: this.isAuthenticated,
                 sessionId: this.sessionId,
                 connectedBots: Array.from(this.connectedBots),
+                currentPhoneNumber: this.currentPhoneNumber, // ✅ ADDED: Include phone number in status
                 timestamp: new Date()
             });
         });
@@ -341,32 +343,50 @@ class SavageBotsScanner {
     }
 
     /**
-     * 🔢 Handle QR code generation
+     * 🔢 Handle QR code generation - UPDATED WITH BETTER ERROR HANDLING
      */
     async handleQRCode(qr) {
         try {
-            // Generate QR code image
+            console.log('📱 [SCANNER] Generating QR code...');
+            
+            // Generate QR code as base64 with better error handling
             const qrImage = await qrcode.toDataURL(qr);
             this.currentQR = qrImage;
             this.currentPairingCode = generatePairingCode();
             
-            // Broadcast to all connected clients
-            this.io.emit('qr_data', {
+            // ✅ IMPROVED: Better QR data structure
+            const qrData = {
                 qrImage: qrImage,
                 qrRaw: qr,
                 pairingCode: this.currentPairingCode,
+                phoneNumber: this.currentPhoneNumber, // ✅ ADDED: Include phone number
                 timestamp: Date.now()
-            });
+            };
+            
+            // Broadcast to all connected clients
+            this.io.emit('qr_data', qrData);
             
             console.log(`🔢 [SCANNER] QR Code generated - Pairing code: ${this.currentPairingCode}`);
             
             // Also update status
             this.io.emit('status_update', {
                 status: 'qr_ready',
-                message: 'Scan QR code to connect WhatsApp'
+                message: 'Scan QR code to connect WhatsApp',
+                phoneNumber: this.currentPhoneNumber // ✅ ADDED: Include phone number in status
             });
+            
         } catch (error) {
             console.error('❌ [SCANNER] QR code generation failed:', error);
+            
+            // ✅ IMPROVED: Fallback - send raw QR data for frontend generation
+            this.io.emit('qr_data', {
+                qrImage: null,
+                qrRaw: qr,
+                pairingCode: this.currentPairingCode,
+                phoneNumber: this.currentPhoneNumber,
+                error: 'QR image generation failed, using raw data',
+                timestamp: Date.now()
+            });
         }
     }
 
@@ -387,17 +407,20 @@ class SavageBotsScanner {
             // Send introduction messages
             await this.sendIntroMessages();
             
+            // ✅ ADDED: Get actual phone number from WhatsApp connection
+            const actualPhoneNumber = this.client.user?.id?.replace(/:\d+$/, '') || 'unknown';
+            
             // Broadcast ready state
             this.io.emit('ready', {
                 status: 'connected',
                 sessionId: this.sessionId,
-                phoneNumber: this.client.user?.id?.replace(/:\d+$/, '') || 'unknown',
+                phoneNumber: actualPhoneNumber,
                 message: 'SAVAGE BOTS SCANNER is now active!',
                 timestamp: new Date()
             });
             
             console.log(`🆔 [SCANNER] Session ID generated: ${this.sessionId}`);
-            console.log(`📱 [SCANNER] Connected as: ${this.client.user?.id?.replace(/:\d+$/, '') || 'unknown'}`);
+            console.log(`📱 [SCANNER] Connected as: ${actualPhoneNumber}`);
             
         } catch (error) {
             console.error('❌ [SCANNER] Ready state handling failed:', error);
@@ -445,7 +468,32 @@ class SavageBotsScanner {
     }
 
     /**
-     * 🔌 Setup WebSocket communication
+     * 📱 Handle phone number from client - ✅ NEW METHOD
+     */
+    handlePhoneNumber(phoneNumber) {
+        console.log(`📱 [SCANNER] Phone number set: ${phoneNumber}`);
+        this.currentPhoneNumber = phoneNumber;
+        
+        // Broadcast to all connected clients
+        this.io.emit('phone_number_updated', { 
+            phoneNumber: phoneNumber,
+            timestamp: new Date().toISOString()
+        });
+        
+        // If we have QR data, update it with the phone number
+        if (this.currentQR) {
+            this.io.emit('qr_data', {
+                qrImage: this.currentQR,
+                qrRaw: this.currentQR, // Reuse existing QR
+                pairingCode: this.currentPairingCode,
+                phoneNumber: phoneNumber,
+                timestamp: Date.now()
+            });
+        }
+    }
+
+    /**
+     * 🔌 Setup WebSocket communication - UPDATED WITH PHONE NUMBER HANDLING
      */
     setupWebSocket() {
         this.io.on('connection', (socket) => {
@@ -457,7 +505,8 @@ class SavageBotsScanner {
                 whatsapp: this.whatsappAvailable,
                 authenticated: this.isAuthenticated,
                 hasQr: !!this.currentQR,
-                sessionId: this.sessionId
+                sessionId: this.sessionId,
+                currentPhoneNumber: this.currentPhoneNumber // ✅ ADDED: Include phone number
             };
             
             socket.emit('scanner_status', status);
@@ -474,9 +523,15 @@ class SavageBotsScanner {
                 socket.emit('qr_data', {
                     qrImage: this.currentQR,
                     pairingCode: this.currentPairingCode,
+                    phoneNumber: this.currentPhoneNumber, // ✅ ADDED: Include phone number
                     timestamp: Date.now()
                 });
             }
+
+            // ✅ ADDED: Handle phone number from client
+            socket.on('set_phone_number', (data) => {
+                this.handlePhoneNumber(data.phoneNumber);
+            });
 
             // Handle bot registration
             socket.on('bot_register', (data) => {
@@ -549,6 +604,7 @@ class SavageBotsScanner {
                     authenticated: this.isAuthenticated,
                     sessionId: this.sessionId,
                     connectedBots: Array.from(this.connectedBots),
+                    currentPhoneNumber: this.currentPhoneNumber, // ✅ ADDED: Include phone number
                     timestamp: new Date()
                 };
                 socket.emit('status', status);
