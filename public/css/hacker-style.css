@@ -22,6 +22,7 @@
     --terminal-gray: #0A0A0A;
     --warning-red: #FF0000;
     --warning-yellow: #FFFF00;
+    --warning-orange: #FF8800;
     --accent-blue: #0000FF;
     --accent-purple: #FF00FF;
     
@@ -270,6 +271,7 @@ body::before {
 .status-connected { background: rgba(0, 255, 0, 0.2); border-color: var(--matrix-bright); }
 .status-syncing { background: rgba(255, 255, 0, 0.2); border-color: var(--warning-yellow); animation: pulse 2s infinite; }
 .status-disconnected { background: rgba(255, 0, 0, 0.2); border-color: var(--warning-red); }
+.status-pairing_ready { background: rgba(255, 0, 255, 0.2); border-color: var(--accent-purple); animation: pulse 2s infinite; }
 
 /* =============================================================================
    📱 SCANNER CONTENT LAYOUT - UPDATED
@@ -300,7 +302,7 @@ body::before {
 }
 
 /* =============================================================================
-   📱 PHONE NUMBER INPUT SECTION - NEW STYLES
+   📱 PHONE NUMBER INPUT SECTION - UPDATED STYLES
    ============================================================================= */
 .phone-container {
     text-align: left;
@@ -313,6 +315,13 @@ body::before {
 
 .input-group {
     margin-bottom: 15px;
+}
+
+.button-group {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 15px;
 }
 
 .input-group label {
@@ -419,11 +428,26 @@ body::before {
     border-radius: var(--terminal-radius);
     word-break: break-all;
     text-shadow: 0 0 10px var(--matrix-green);
+    animation: codeGlow 2s ease-in-out infinite;
 }
 
 @keyframes codeGlow {
-    0%, 100% { box-shadow: 0 0 10px var(--matrix-green); }
-    50% { box-shadow: 0 0 25px var(--matrix-bright); }
+    0%, 100% { 
+        box-shadow: 0 0 10px var(--matrix-green), 
+                    inset 0 0 10px rgba(0, 255, 0, 0.1); 
+    }
+    50% { 
+        box-shadow: 0 0 25px var(--matrix-bright), 
+                    inset 0 0 15px rgba(0, 255, 0, 0.2); 
+    }
+}
+
+.pairing-controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 15px;
 }
 
 /* =============================================================================
@@ -454,6 +478,7 @@ body::before {
     border: 1px solid var(--matrix-green);
     border-radius: 4px;
     color: var(--matrix-bright);
+    text-shadow: 0 0 5px var(--matrix-green);
 }
 
 /* =============================================================================
@@ -652,15 +677,43 @@ body::before {
     text-decoration: none;
     display: inline-block;
     text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transition: left 0.5s;
+}
+
+.btn:hover::before {
+    left: 100%;
 }
 
 .btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0, 255, 0, 0.3);
+    box-shadow: 0 5px 15px currentColor;
 }
 
 .btn:active {
     transform: translateY(0);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn:disabled::before {
+    display: none;
 }
 
 .btn-primary {
@@ -699,7 +752,7 @@ body::before {
 .btn-small {
     padding: 8px 15px;
     font-size: 0.8rem;
-    margin: 5px;
+    margin: 5px 0;
 }
 
 /* =============================================================================
@@ -725,6 +778,7 @@ body::before {
     gap: 10px;
     animation: slideInRight 0.3s ease;
     backdrop-filter: blur(10px);
+    max-width: 400px;
 }
 
 @keyframes slideInRight {
@@ -771,15 +825,22 @@ body::before {
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: color 0.3s ease;
+}
+
+.notification-close:hover {
+    color: var(--matrix-bright);
 }
 
 .notification-icon {
     font-size: 1.2rem;
+    flex-shrink: 0;
 }
 
 .notification-message {
     flex: 1;
     font-size: 0.9rem;
+    line-height: 1.4;
 }
 
 /* =============================================================================
@@ -814,12 +875,15 @@ body::before {
 .status-syncing { color: var(--accent-blue); }
 .status-error { color: var(--warning-red); }
 .status-reconnecting { color: var(--warning-orange); }
+.status-pairing_ready { color: var(--accent-purple); }
 
 .status-online { color: var(--matrix-bright); }
 .status-offline { color: var(--warning-red); }
 .status-connecting { color: var(--warning-yellow); }
 
-.status-connecting {
+.status-connecting,
+.status-reconnecting,
+.status-pairing_ready {
     animation: pulse 1.5s infinite;
 }
 
@@ -845,7 +909,7 @@ body::before {
     .scanner-title { font-size: 1.8rem; }
     .scanner-content { grid-template-columns: 1fr; }
     .bots-grid { grid-template-columns: 1fr; }
-    .pairing-code { font-size: 2rem; letter-spacing: 3px; }
+    .pairing-code { font-size: 2rem; letter-spacing: 5px; padding: 15px; }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
     .hacker-input { font-size: 14px; padding: 10px; }
     .notifications-container {
@@ -855,6 +919,18 @@ body::before {
     }
     .phone-container {
         text-align: center;
+    }
+    .button-group {
+        flex-direction: column;
+        align-items: center;
+    }
+    .pairing-controls {
+        flex-direction: column;
+        align-items: center;
+    }
+    .btn {
+        width: 100%;
+        max-width: 200px;
     }
 }
 
@@ -867,6 +943,10 @@ body::before {
     .pairing-code { font-size: 1.5rem; letter-spacing: 3px; padding: 10px; }
     .stat-value { font-size: 1.4rem; }
     .bot-card { padding: 15px; }
+    .notification {
+        padding: 12px;
+        font-size: 0.8rem;
+    }
 }
 
 /* =============================================================================
@@ -905,11 +985,18 @@ body::before {
 .mb-10 { margin-bottom: 10px; }
 .mb-20 { margin-bottom: 20px; }
 
-.hidden { display: none; }
-.visible { display: block; }
+.hidden { display: none !important; }
+.visible { display: block !important; }
 
 .glow { text-shadow: 0 0 10px currentColor; }
 .glow-box { box-shadow: 0 0 15px currentColor; }
+
+.flex { display: flex; }
+.flex-column { flex-direction: column; }
+.justify-center { justify-content: center; }
+.align-center { align-items: center; }
+.gap-10 { gap: 10px; }
+.gap-15 { gap: 15px; }
 
 /* =============================================================================
    🎮 SCROLLBAR STYLING
@@ -953,4 +1040,69 @@ textarea:focus,
 select:focus {
     outline: 2px solid var(--matrix-bright);
     outline-offset: 2px;
+}
+
+/* =============================================================================
+   🆕 BUTTON GROUP STYLES
+   ============================================================================= */
+.button-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin: 15px 0;
+}
+
+/* =============================================================================
+   🆕 LOADING STATE STYLES
+   ============================================================================= */
+.btn-loading {
+    position: relative;
+    color: transparent !important;
+}
+
+.btn-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* =============================================================================
+   🆕 STATUS BADGE STYLES
+   ============================================================================= */
+.status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.status-badge.connected {
+    background: rgba(0, 255, 0, 0.2);
+    color: var(--matrix-bright);
+    border: 1px solid var(--matrix-green);
+}
+
+.status-badge.disconnected {
+    background: rgba(255, 0, 0, 0.2);
+    color: var(--warning-red);
+    border: 1px solid var(--warning-red);
+}
+
+.status-badge.syncing {
+    background: rgba(0, 136, 255, 0.2);
+    color: var(--accent-blue);
+    border: 1px solid var(--accent-blue);
+    animation: pulse 2s infinite;
 }
