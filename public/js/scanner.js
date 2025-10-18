@@ -37,7 +37,7 @@ class SavageScanner {
         console.log('🦅 Initializing SAVAGE BOTS SCANNER...');
         
         this.checkAuthentication();
-        this.initializeSocket();
+        this.initializeSocketIO();
         this.setupEventListeners();
         this.setupUIUpdates();
         
@@ -64,153 +64,113 @@ class SavageScanner {
     }
 
     /**
-     * 🌐 Initialize WebSocket connection
+     * 🌐 Initialize Socket.IO connection
      */
-    initializeSocket() {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/savage-ws`;
-        
+    initializeSocketIO() {
         try {
-            this.socket = new WebSocket(wsUrl);
+            this.socket = io({
+                timeout: 10000,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 3000
+            });
             
-            this.socket.onopen = () => this.handleSocketOpen();
-            this.socket.onmessage = (event) => this.handleSocketMessage(event);
-            this.socket.onclose = () => this.handleSocketClose();
-            this.socket.onerror = (error) => this.handleSocketError(error);
+            this.setupSocketEvents();
             
         } catch (error) {
-            console.error('❌ WebSocket connection failed:', error);
+            console.error('❌ Socket.IO connection failed:', error);
             this.showError('Failed to connect to scanner server');
         }
     }
 
     /**
-     * 🔌 Handle WebSocket connection open
+     * 🔌 Setup Socket.IO event handlers
      */
-    handleSocketOpen() {
-        console.log('✅ WebSocket connected to SAVAGE SCANNER');
+    setupSocketEvents() {
+        // Connection events
+        this.socket.on('connect', () => this.handleSocketConnect());
+        this.socket.on('disconnect', () => this.handleSocketDisconnect());
+        this.socket.on('connect_error', (error) => this.handleSocketError(error));
+        
+        // Scanner events
+        this.socket.on('scanner_status', (data) => this.handleScannerStatus(data));
+        this.socket.on('qr_data', (data) => this.handleQRData(data));
+        this.socket.on('ready', (data) => this.handleReady(data));
+        this.socket.on('status_update', (data) => this.handleStatusUpdate(data));
+        this.socket.on('bot_status', (data) => this.handleBotStatus(data));
+        this.socket.on('connection_update', (data) => this.handleConnectionUpdate(data));
+        this.socket.on('auth_result', (data) => this.handleAuthResult(data));
+        this.socket.on('phone_number_updated', (data) => this.handlePhoneNumberUpdate(data));
+        
+        // Error events
+        this.socket.on('error', (data) => this.handleError(data));
+    }
+
+    /**
+     * 🔌 Handle Socket.IO connection
+     */
+    handleSocketConnect() {
+        console.log('✅ Socket.IO connected to SAVAGE SCANNER');
         this.isConnected = true;
         this.reconnectAttempts = 0;
         
         this.updateStatus('connected', 'Connected to scanner server');
+        this.showNotification('Connected to scanner server', 'success');
         
-        // Send authentication if we have a session token
-        const sessionToken = localStorage.getItem('savage_session_token');
-        if (sessionToken) {
-            this.sendAuthRequest(sessionToken);
-        }
+        // Request current status
+        this.socket.emit('get_status');
     }
 
     /**
-     * 📨 Handle WebSocket messages
+     * 🔌 Handle Socket.IO disconnect
      */
-    handleSocketMessage(event) {
-        try {
-            const data = JSON.parse(event.data);
-            console.log('📨 Received:', data.type, data);
-            
-            switch (data.type) {
-                case 'qr_data':
-                    this.handleQRData(data);
-                    break;
-                case 'auth_result':
-                    this.handleAuthResult(data);
-                    break;
-                case 'ready':
-                    this.handleReady(data);
-                    break;
-                case 'status_update':
-                    this.handleStatusUpdate(data);
-                    break;
-                case 'bot_status':
-                    this.handleBotStatus(data);
-                    break;
-                case 'session_info':
-                    this.handleSessionInfo(data);
-                    break;
-                case 'error':
-                    this.handleError(data);
-                    break;
-                default:
-                    console.warn('Unknown message type:', data.type);
-            }
-        } catch (error) {
-            console.error('❌ Failed to parse WebSocket message:', error);
-        }
-    }
-
-    /**
-     * 🔌 Handle WebSocket connection close
-     */
-    handleSocketClose() {
-        console.log('🔌 WebSocket connection closed');
+    handleSocketDisconnect() {
+        console.log('🔌 Socket.IO connection disconnected');
         this.isConnected = false;
         this.updateStatus('disconnected', 'Disconnected from server');
-        
-        this.attemptReconnect();
+        this.showNotification('Disconnected from server', 'warning');
     }
 
     /**
-     * ❌ Handle WebSocket error
+     * ❌ Handle Socket.IO error
      */
     handleSocketError(error) {
-        console.error('❌ WebSocket error:', error);
+        console.error('❌ Socket.IO connection error:', error);
         this.updateStatus('error', 'Connection error');
+        this.showNotification('Connection error: ' + error.message, 'error');
     }
 
     /**
-     * 🔄 Attempt to reconnect WebSocket
+     * 📨 Handle scanner status
      */
-    attemptReconnect() {
-        if (this.reconnectAttempts < this.maxReconnectAttempts) {
-            this.reconnectAttempts++;
-            const delay = this.reconnectDelay * this.reconnectAttempts;
-            
-            console.log(`🔄 Reconnecting in ${delay/1000} seconds... (Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-            
-            this.updateStatus('reconnecting', `Reconnecting... Attempt ${this.reconnectAttempts}`);
-            
-            setTimeout(() => {
-                this.initializeSocket();
-            }, delay);
-        } else {
-            console.error('💥 Maximum reconnection attempts reached');
-            this.updateStatus('error', 'Failed to reconnect to server');
+    handleScannerStatus(data) {
+        console.log('📊 Scanner status:', data);
+        
+        if (data.whatsapp && data.sessionId) {
+            this.sessionId = data.sessionId;
+            this.updateSessionInfo(data);
+        }
+        
+        if (data.hasQr) {
+            this.socket.emit('get_qr');
         }
     }
 
     /**
-     * 📨 Send message via WebSocket
-     */
-    sendMessage(type, data = {}) {
-        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-            const message = { type, ...data };
-            this.socket.send(JSON.stringify(message));
-            console.log('📤 Sent:', type, message);
-        } else {
-            console.warn('⚠️ WebSocket not ready, message not sent:', type);
-        }
-    }
-
-    /**
-     * 🔐 Send authentication request
-     */
-    sendAuthRequest(sessionToken) {
-        this.sendMessage('auth_request', {
-            sessionToken,
-            userAgent: navigator.userAgent,
-            timestamp: Date.now()
-        });
-    }
-
-    /**
-     * 📱 Handle QR code data
+     * 📱 Handle QR code data - UPDATED WITH PHONE NUMBER
      */
     handleQRData(data) {
+        console.log('📱 QR Data received:', data);
+        
         this.scannerState.qrCode = data.qrImage;
         this.scannerState.pairingCode = data.pairingCode;
         
-        this.updateQRCode(data.qrImage);
+        // Update phone number if provided
+        if (data.phoneNumber) {
+            this.scannerState.phoneNumber = data.phoneNumber;
+            this.updatePhoneNumberDisplay(data.phoneNumber);
+        }
+        
+        this.updateQRCode(data.qrImage, data.qrRaw);
         this.updatePairingCode(data.pairingCode);
         this.updateStatus('waiting_qr', 'Scan QR code or use pairing code');
         
@@ -248,6 +208,7 @@ class SavageScanner {
         
         this.updateStatus('connected', 'WhatsApp connected and ready');
         this.updateSessionInfo(data);
+        this.updatePhoneNumberDisplay(data.phoneNumber);
         this.showNotification('WhatsApp connected successfully!', 'success');
         
         // Update bot statuses
@@ -264,8 +225,33 @@ class SavageScanner {
     handleStatusUpdate(data) {
         this.updateStatus(data.status, data.message);
         
+        if (data.phoneNumber) {
+            this.scannerState.phoneNumber = data.phoneNumber;
+            this.updatePhoneNumberDisplay(data.phoneNumber);
+        }
+        
         if (data.status === 'syncing') {
             this.showNotification('Syncing with WhatsApp...', 'warning');
+        }
+    }
+
+    /**
+     * 📱 Handle phone number updates - NEW METHOD
+     */
+    handlePhoneNumberUpdate(data) {
+        if (data.phoneNumber) {
+            this.scannerState.phoneNumber = data.phoneNumber;
+            this.updatePhoneNumberDisplay(data.phoneNumber);
+            this.showNotification(`Phone number updated: ${data.phoneNumber}`, 'success');
+        }
+    }
+
+    /**
+     * 🔄 Handle connection updates
+     */
+    handleConnectionUpdate(data) {
+        if (data.status) {
+            this.updateStatus(data.status, data.message || 'Connection update');
         }
     }
 
@@ -276,14 +262,6 @@ class SavageScanner {
         if (data.botName && data.status) {
             this.updateBotStatus(data.botName, data.status, data.lastSeen);
         }
-    }
-
-    /**
-     * 🔑 Handle session information
-     */
-    handleSessionInfo(data) {
-        this.sessionId = data.sessionId;
-        this.updateSessionInfo(data);
     }
 
     /**
@@ -299,20 +277,60 @@ class SavageScanner {
     }
 
     /**
-     * 🎨 Update QR code display
+     * 🎨 Update QR code display - IMPROVED WITH FALLBACK
      */
-    updateQRCode(qrImage) {
+    updateQRCode(qrImage, qrRaw = null) {
         const qrElement = document.getElementById('qrCode');
-        if (qrElement) {
-            qrElement.innerHTML = `<img src="${qrImage}" alt="WhatsApp QR Code" style="width: 100%; height: auto;">`;
+        if (!qrElement) return;
+
+        if (qrImage) {
+            // Display QR image
+            qrElement.innerHTML = `
+                <img src="${qrImage}" alt="WhatsApp QR Code" style="max-width: 100%; height: auto; border: 2px solid var(--matrix-green); border-radius: 8px;">
+            `;
+        } else if (qrRaw) {
+            // Fallback: display manual pairing instructions
+            qrElement.innerHTML = `
+                <div class="manual-qr-fallback">
+                    <h4>📱 Manual Pairing Required</h4>
+                    <p>Use this code in WhatsApp:</p>
+                    <div class="manual-code">${qrRaw}</div>
+                    <p><small>Go to WhatsApp → Linked Devices → Link a Device</small></p>
+                </div>
+            `;
+        } else {
+            qrElement.innerHTML = `
+                <div class="loading-spinner"></div>
+                <p class="loading-text">Generating QR Code...</p>
+            `;
         }
         
         // Update QR status
         const qrStatus = document.getElementById('qrStatus');
         if (qrStatus) {
-            qrStatus.textContent = 'QR Code Ready - Scan with WhatsApp';
-            qrStatus.className = 'status-syncing';
+            qrStatus.textContent = qrImage ? 'QR Code Ready - Scan with WhatsApp' : 'Manual Pairing Required';
+            qrStatus.className = qrImage ? 'status-syncing' : 'status-waiting';
         }
+
+        // Show download button if QR image is available
+        const downloadBtn = document.getElementById('downloadQRBtn');
+        if (downloadBtn) {
+            downloadBtn.style.display = qrImage ? 'inline-block' : 'none';
+            if (qrImage) {
+                downloadBtn.onclick = () => this.downloadQRCode(qrImage);
+            }
+        }
+    }
+
+    /**
+     * 📥 Download QR code - NEW METHOD
+     */
+    downloadQRCode(qrImage) {
+        const link = document.createElement('a');
+        link.href = qrImage;
+        link.download = `savage-scanner-qr-${Date.now()}.png`;
+        link.click();
+        this.showNotification('QR code downloaded', 'success');
     }
 
     /**
@@ -321,13 +339,37 @@ class SavageScanner {
     updatePairingCode(pairingCode) {
         const pairingElement = document.getElementById('pairingCode');
         if (pairingElement) {
-            pairingElement.textContent = pairingCode;
+            pairingElement.textContent = pairingCode || '------';
         }
         
         const pairingStatus = document.getElementById('pairingStatus');
         if (pairingStatus) {
-            pairingStatus.textContent = 'Pairing Code Ready';
-            pairingStatus.className = 'status-syncing';
+            pairingStatus.textContent = pairingCode ? 'Pairing Code Ready' : 'Generating pairing code...';
+            pairingStatus.className = pairingCode ? 'status-syncing' : 'status-waiting';
+        }
+
+        // Update copy button
+        const copyBtn = document.getElementById('copyPairingBtn');
+        if (copyBtn && pairingCode) {
+            copyBtn.onclick = () => this.copyPairingCode(pairingCode);
+        }
+    }
+
+    /**
+     * 📱 Update phone number display - NEW METHOD
+     */
+    updatePhoneNumberDisplay(phoneNumber) {
+        const phoneDisplay = document.getElementById('phoneNumberDisplay');
+        const phoneStatus = document.getElementById('phoneStatus');
+        
+        if (phoneDisplay) {
+            phoneDisplay.textContent = phoneNumber || 'Not connected';
+            phoneDisplay.className = phoneNumber ? 'session-value status-connected' : 'session-value status-disconnected';
+        }
+        
+        if (phoneStatus) {
+            phoneStatus.textContent = phoneNumber ? `Number: ${phoneNumber}` : 'No phone number set';
+            phoneStatus.className = phoneNumber ? 'status-connected' : 'status-waiting';
         }
     }
 
@@ -339,6 +381,7 @@ class SavageScanner {
         
         const statusElement = document.getElementById('connectionStatus');
         const messageElement = document.getElementById('statusMessage');
+        const connectionState = document.getElementById('connectionState');
         
         if (statusElement) {
             statusElement.textContent = this.formatStatus(status);
@@ -347,6 +390,11 @@ class SavageScanner {
         
         if (messageElement) {
             messageElement.textContent = message;
+        }
+
+        if (connectionState) {
+            connectionState.textContent = this.formatStatus(status);
+            connectionState.className = `session-value status-${status}`;
         }
         
         // Update status icon
@@ -363,7 +411,9 @@ class SavageScanner {
             'waiting_qr': 'WAITING FOR SCAN',
             'syncing': 'SYNCING...',
             'reconnecting': 'RECONNECTING...',
-            'error': 'ERROR'
+            'error': 'ERROR',
+            'qr_ready': 'QR READY',
+            'whatsapp_failed': 'WHATSAPP FAILED'
         };
         
         return statusMap[status] || status.toUpperCase();
@@ -382,7 +432,9 @@ class SavageScanner {
             'waiting_qr': '🟡',
             'syncing': '🟠',
             'reconnecting': '🟣',
-            'error': '💥'
+            'error': '💥',
+            'qr_ready': '📱',
+            'whatsapp_failed': '❌'
         };
         
         iconElement.textContent = icons[status] || '⚪';
@@ -396,24 +448,30 @@ class SavageScanner {
             this.scannerState.bots[botName].status = status;
             this.scannerState.bots[botName].lastSeen = lastSeen || new Date();
             
-            this.updateBotUI(botName, status);
+            this.updateBotUI(botName, status, lastSeen);
         }
     }
 
     /**
      * 🎨 Update bot UI elements
      */
-    updateBotUI(botName, status) {
-        const botElement = document.getElementById(`bot-${botName.toLowerCase()}`);
-        const statusElement = document.getElementById(`status-${botName.toLowerCase()}`);
+    updateBotUI(botName, status, lastSeen = null) {
+        const botId = botName.toLowerCase().replace('-', '_');
+        const botElement = document.getElementById(`bot-${botId}`);
+        const statusElement = document.getElementById(`status-${botId}`);
+        const lastSeenElement = document.getElementById(`lastSeen-${botId}`);
         
         if (botElement) {
-            botElement.className = `bot-card ${botName.toLowerCase().replace('-', '')} ${status}`;
+            botElement.className = `bot-card ${botId} ${status}`;
         }
         
         if (statusElement) {
             statusElement.textContent = status.toUpperCase();
             statusElement.className = `bot-status status-${status}`;
+        }
+
+        if (lastSeenElement && lastSeen) {
+            lastSeenElement.textContent = this.formatRelativeTime(lastSeen);
         }
     }
 
@@ -422,14 +480,18 @@ class SavageScanner {
      */
     updateSessionInfo(data) {
         const sessionElement = document.getElementById('sessionId');
-        const phoneElement = document.getElementById('phoneNumber');
         
         if (sessionElement && data.sessionId) {
             sessionElement.textContent = data.sessionId;
-        }
-        
-        if (phoneElement && data.phoneNumber) {
-            phoneElement.textContent = data.phoneNumber;
+            this.sessionId = data.sessionId;
+            
+            // Update footer session
+            const footerSession = document.getElementById('footerSession');
+            if (footerSession) {
+                const shortId = data.sessionId.length > 20 ? 
+                    data.sessionId.substring(0, 20) + '...' : data.sessionId;
+                footerSession.textContent = shortId;
+            }
         }
     }
 
@@ -437,80 +499,71 @@ class SavageScanner {
      * 🎭 Show password interface
      */
     showPasswordInterface() {
-        this.hideAllInterfaces();
-        
-        const passwordInterface = document.getElementById('passwordInterface');
-        if (passwordInterface) {
-            passwordInterface.style.display = 'block';
-        }
+        // Redirect to password page
+        window.location.href = '/password';
     }
 
     /**
      * 📱 Show scanner interface
      */
     showScannerInterface() {
-        this.hideAllInterfaces();
+        // We're already on the scanner page, just ensure everything is visible
+        console.log('🦅 Scanner interface active');
         
-        const scannerInterface = document.getElementById('scannerInterface');
-        if (scannerInterface) {
-            scannerInterface.style.display = 'block';
+        // Request initial data
+        if (this.socket && this.isConnected) {
+            this.socket.emit('get_status');
         }
-        
-        // Request QR code if not already received
-        if (!this.scannerState.qrCode) {
-            this.sendMessage('get_qr');
-        }
-    }
-
-    /**
-     * 🚫 Hide all interfaces
-     */
-    hideAllInterfaces() {
-        const interfaces = ['passwordInterface', 'scannerInterface'];
-        interfaces.forEach(id => {
-            const element = document.getElementById(id);
-            if (element) {
-                element.style.display = 'none';
-            }
-        });
     }
 
     /**
      * 💬 Show notification
      */
     showNotification(message, type = 'info') {
-        // Create notification element
+        // Use the global notification function if available
+        if (window.showNotification) {
+            window.showNotification(message, type);
+            return;
+        }
+
+        // Fallback notification system
         const notification = document.createElement('div');
-        notification.className = `alert alert-${type}`;
+        notification.className = `notification notification-${type}`;
         notification.innerHTML = `
-            <strong>${type.toUpperCase()}:</strong> ${message}
-            <button class="close-btn" onclick="this.parentElement.remove()">×</button>
+            <span class="notification-icon">${this.getNotificationIcon(type)}</span>
+            <span class="notification-message">${message}</span>
+            <button class="notification-close" onclick="this.parentElement.remove()">×</button>
         `;
         
-        // Add to notifications container
         const container = document.getElementById('notifications');
         if (container) {
             container.appendChild(notification);
             
-            // Auto-remove after 5 seconds
             setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.parentNode.removeChild(notification);
+                if (notification.parentElement) {
+                    notification.remove();
                 }
             }, 5000);
         }
     }
 
     /**
+     * 🎯 Get notification icon
+     */
+    getNotificationIcon(type) {
+        const icons = {
+            'success': '✅',
+            'error': '❌',
+            'warning': '⚠️',
+            'info': 'ℹ️'
+        };
+        return icons[type] || 'ℹ️';
+    }
+
+    /**
      * 🎛️ Setup event listeners
      */
     setupEventListeners() {
-        // Password form submission
-        const passwordForm = document.getElementById('passwordForm');
-        if (passwordForm) {
-            passwordForm.addEventListener('submit', (e) => this.handlePasswordSubmit(e));
-        }
-        
         // Logout button
         const logoutBtn = document.getElementById('logoutBtn');
         if (logoutBtn) {
@@ -528,9 +581,77 @@ class SavageScanner {
         if (copySessionBtn) {
             copySessionBtn.addEventListener('click', () => this.copySessionId());
         }
+
+        // Copy pairing code button
+        const copyPairingBtn = document.getElementById('copyPairingBtn');
+        if (copyPairingBtn) {
+            copyPairingBtn.addEventListener('click', () => {
+                const pairingCode = document.getElementById('pairingCode').textContent;
+                if (pairingCode && pairingCode !== '------') {
+                    this.copyPairingCode(pairingCode);
+                }
+            });
+        }
+
+        // Phone number handling
+        this.setupPhoneNumberHandling();
         
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
+    }
+
+    /**
+     * 📱 Setup phone number handling - NEW METHOD
+     */
+    setupPhoneNumberHandling() {
+        const savePhoneBtn = document.getElementById('savePhoneBtn');
+        const phoneInput = document.getElementById('phoneNumber');
+
+        if (savePhoneBtn && phoneInput) {
+            savePhoneBtn.addEventListener('click', () => this.savePhoneNumber());
+            
+            phoneInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.savePhoneNumber();
+                }
+            });
+        }
+    }
+
+    /**
+     * 💾 Save phone number - NEW METHOD
+     */
+    savePhoneNumber() {
+        const phoneInput = document.getElementById('phoneNumber');
+        const phoneNumber = phoneInput.value.trim();
+        
+        if (!phoneNumber) {
+            this.showNotification('Please enter a phone number', 'error');
+            return;
+        }
+
+        // Basic phone number validation
+        if (!phoneNumber.startsWith('+')) {
+            this.showNotification('Phone number must start with country code (e.g., +1234567890)', 'warning');
+            return;
+        }
+
+        if (phoneNumber.length < 10) {
+            this.showNotification('Please enter a valid phone number', 'warning');
+            return;
+        }
+
+        // Send phone number to server
+        if (this.socket && this.isConnected) {
+            this.socket.emit('set_phone_number', { phoneNumber: phoneNumber });
+            this.showNotification(`Phone number saved: ${phoneNumber}`, 'success');
+            
+            // Update local state
+            this.scannerState.phoneNumber = phoneNumber;
+            this.updatePhoneNumberDisplay(phoneNumber);
+        } else {
+            this.showNotification('Scanner not connected. Please wait...', 'error');
+        }
     }
 
     /**
@@ -554,7 +675,7 @@ class SavageScanner {
         submitBtn.disabled = true;
         
         // Send authentication request
-        this.sendMessage('authenticate', { password });
+        this.socket.emit('authenticate', { password });
         
         // Reset button after delay
         setTimeout(() => {
@@ -576,15 +697,19 @@ class SavageScanner {
         this.showNotification('Logged out successfully', 'success');
         
         // Notify server
-        this.sendMessage('logout');
+        if (this.socket) {
+            this.socket.emit('logout');
+        }
     }
 
     /**
      * 🔄 Refresh QR code
      */
     refreshQR() {
-        this.sendMessage('refresh_qr');
-        this.showNotification('Generating new QR code...', 'warning');
+        if (this.socket) {
+            this.socket.emit('refresh_qr');
+            this.showNotification('Generating new QR code...', 'warning');
+        }
     }
 
     /**
@@ -602,6 +727,24 @@ class SavageScanner {
         } catch (error) {
             console.error('❌ Failed to copy session ID:', error);
             this.showNotification('Failed to copy session ID', 'error');
+        }
+    }
+
+    /**
+     * 📋 Copy pairing code to clipboard - NEW METHOD
+     */
+    async copyPairingCode(pairingCode) {
+        if (!pairingCode || pairingCode === '------') {
+            this.showNotification('No pairing code available', 'error');
+            return;
+        }
+        
+        try {
+            await navigator.clipboard.writeText(pairingCode);
+            this.showNotification('Pairing code copied to clipboard!', 'success');
+        } catch (error) {
+            console.error('❌ Failed to copy pairing code:', error);
+            this.showNotification('Failed to copy pairing code', 'error');
         }
     }
 
@@ -625,6 +768,15 @@ class SavageScanner {
         if (e.ctrlKey && e.shiftKey && e.key === 'C') {
             e.preventDefault();
             this.copySessionId();
+        }
+
+        // Ctrl+Shift+P - Focus phone input
+        if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+            e.preventDefault();
+            const phoneInput = document.getElementById('phoneNumber');
+            if (phoneInput) {
+                phoneInput.focus();
+            }
         }
     }
 
@@ -651,7 +803,8 @@ class SavageScanner {
         Object.keys(this.scannerState.bots).forEach(botName => {
             const bot = this.scannerState.bots[botName];
             if (bot.lastSeen) {
-                const lastSeenElement = document.getElementById(`lastSeen-${botName.toLowerCase()}`);
+                const botId = botName.toLowerCase().replace('-', '_');
+                const lastSeenElement = document.getElementById(`lastSeen-${botId}`);
                 if (lastSeenElement) {
                     lastSeenElement.textContent = this.formatRelativeTime(bot.lastSeen);
                 }
@@ -670,6 +823,13 @@ class SavageScanner {
         const statsElement = document.getElementById('onlineBotsCount');
         if (statsElement) {
             statsElement.textContent = onlineBots;
+        }
+
+        // Update messages processed (mock data for now)
+        const messagesElement = document.getElementById('messagesProcessed');
+        if (messagesElement) {
+            const current = parseInt(messagesElement.textContent) || 0;
+            messagesElement.textContent = current + Math.floor(Math.random() * 3);
         }
     }
 
@@ -697,6 +857,7 @@ class SavageScanner {
             scanner: this.scannerState.status,
             bots: this.scannerState.bots,
             sessionId: this.sessionId,
+            phoneNumber: this.scannerState.phoneNumber,
             reconnectAttempts: this.reconnectAttempts
         };
     }
@@ -706,7 +867,7 @@ class SavageScanner {
      */
     destroy() {
         if (this.socket) {
-            this.socket.close();
+            this.socket.disconnect();
         }
         
         localStorage.removeItem('savage_session_token');
@@ -720,12 +881,9 @@ class SavageScanner {
 document.addEventListener('DOMContentLoaded', () => {
     window.savageScanner = new SavageScanner();
     
-    // Global function for password submission (for form action)
-    window.submitPassword = function() {
-        if (window.savageScanner) {
-            const event = new Event('submit');
-            document.getElementById('passwordForm').dispatchEvent(event);
-        }
+    // Make scanner available globally
+    window.getScannerStatus = () => {
+        return window.savageScanner ? window.savageScanner.getHealthStatus() : null;
     };
 });
 
