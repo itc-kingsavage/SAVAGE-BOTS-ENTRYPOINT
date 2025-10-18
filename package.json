@@ -12,7 +12,7 @@
     "test:coverage": "jest --coverage",
     "build": "npm run build:clean && npm run build:copy",
     "build:clean": "rm -rf dist/ && mkdir dist",
-    "build:copy": "cp -r config/ auth/ utils/ routes/ middleware/ public/ dist/",
+    "build:copy": "cp -r config/ auth/ utils/ public/ dist/",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
     "security:audit": "npm audit --audit-level=high",
@@ -72,7 +72,7 @@
     "npm": ">=7.0.0"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.4.0",
+    "@whiskeysockets/baileys": "^6.5.0",
     "express": "^4.18.2",
     "socket.io": "^4.7.2",
     "mongoose": "^7.5.0",
@@ -95,8 +95,7 @@
     "joi": "^17.9.2",
     "axios": "^1.5.0",
     "form-data": "^4.0.0",
-    "multer": "^1.4.5-lts.1",
-    "libsignal": "^1.0.2"
+    "multer": "^1.4.5-lts.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.1",
@@ -131,11 +130,7 @@
     "config/",
     "auth/",
     "utils/",
-    "routes/",
-    "middleware/",
     "public/",
-    "bots/",
-    "scripts/",
     "savage-scanner.js",
     "README.md",
     "LICENSE"
@@ -156,7 +151,6 @@
       "auth/**/*.js",
       "config/**/*.js",
       "utils/**/*.js",
-      "middleware/**/*.js",
       "!**/node_modules/**",
       "!**/vendor/**"
     ],
@@ -172,8 +166,6 @@
       "config/",
       "auth/",
       "utils/",
-      "routes/",
-      "middleware/",
       "savage-scanner.js"
     ],
     "ext": "js,json",
