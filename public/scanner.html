@@ -37,6 +37,24 @@
         <div class="scanner-content">
             <!-- 📶 Left Column: Authentication -->
             <div class="auth-column">
+                <!-- 📱 Phone Number Input Section -->
+                <div class="terminal-container phone-container">
+                    <h3 class="section-title">📱 WHATSAPP NUMBER</h3>
+                    <div class="input-section">
+                        <div class="input-group">
+                            <label for="phoneNumber">Enter Phone Number:</label>
+                            <input type="text" id="phoneNumber" placeholder="+1234567890" class="hacker-input">
+                            <small>Enter phone number with country code (e.g., +1234567890)</small>
+                        </div>
+                        <button id="savePhoneBtn" class="btn btn-primary btn-small">
+                            💾 Save Number
+                        </button>
+                    </div>
+                    <div class="phone-status">
+                        <span id="phoneStatus" class="status-waiting">No phone number set</span>
+                    </div>
+                </div>
+
                 <!-- 🔐 QR Code Section -->
                 <div class="terminal-container qr-container">
                     <h3 class="section-title">📱 WHATSAPP QR CODE</h3>
@@ -134,7 +152,7 @@
                         </div>
                         <div class="session-item">
                             <span class="session-label">Phone Number:</span>
-                            <span id="phoneNumber" class="session-value">Not connected</span>
+                            <span id="phoneNumberDisplay" class="session-value">Not connected</span>
                         </div>
                         <div class="session-item">
                             <span class="session-label">Platform:</span>
@@ -237,6 +255,61 @@
             gap: 20px;
         }
 
+        /* 📱 Phone Number Input Styles */
+        .phone-container {
+            text-align: left;
+        }
+
+        .input-section {
+            margin: 15px 0;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--matrix-green);
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .hacker-input {
+            width: 100%;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--matrix-green);
+            border-radius: 4px;
+            color: var(--matrix-green);
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .hacker-input:focus {
+            outline: none;
+            border-color: var(--matrix-bright);
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+        }
+
+        .hacker-input::placeholder {
+            color: #008000;
+        }
+
+        .input-group small {
+            color: #008000;
+            font-size: 0.8rem;
+            margin-top: 5px;
+            display: block;
+        }
+
+        .phone-status {
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
+
         .qr-container, .pairing-container {
             text-align: center;
         }
@@ -250,6 +323,15 @@
             background: white;
             border-radius: 8px;
             margin: 15px 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .qr-code img {
+            max-width: 100%;
+            max-height: 100%;
+            border: 2px solid var(--matrix-green);
+            border-radius: 8px;
         }
 
         .loading-text {
@@ -267,6 +349,7 @@
             background: rgba(0, 20, 0, 0.5);
             border: 2px solid var(--matrix-green);
             border-radius: var(--terminal-radius);
+            word-break: break-all;
         }
 
         /* 🤖 Bot Cards */
@@ -460,6 +543,11 @@
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
+
+            .hacker-input {
+                font-size: 14px;
+                padding: 10px;
+            }
         }
 
         @media (max-width: 480px) {
@@ -478,6 +566,10 @@
 
             .bot-card {
                 padding: 15px;
+            }
+
+            .phone-container {
+                text-align: center;
             }
         }
 
@@ -502,15 +594,39 @@
 
         .status-online { color: var(--matrix-bright); }
         .status-offline { color: var(--warning-red); }
+
+        /* 📱 Manual QR Code Fallback */
+        .manual-qr-fallback {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid var(--matrix-green);
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .manual-code {
+            font-family: 'Courier New', monospace;
+            font-size: 1.2rem;
+            word-break: break-all;
+            background: #000;
+            padding: 15px;
+            margin: 10px 0;
+            border: 1px solid var(--matrix-green);
+            border-radius: 4px;
+        }
     </style>
 
     <!-- 🚀 JavaScript -->
+    <script src="/socket.io/socket.io.js"></script>
     <script src="js/scanner.js"></script>
     
     <!-- 🌌 Scanner Initialization -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🦅 SAVAGE Scanner Interface Loaded');
+            
+            // Initialize phone number handling
+            initializePhoneNumberInput();
             
             // Initialize uptime counter
             startUptimeCounter();
@@ -524,6 +640,49 @@
             // Add keyboard shortcuts help
             setupKeyboardHelp();
         });
+
+        function initializePhoneNumberInput() {
+            const phoneInput = document.getElementById('phoneNumber');
+            const savePhoneBtn = document.getElementById('savePhoneBtn');
+            const phoneStatus = document.getElementById('phoneStatus');
+
+            savePhoneBtn.addEventListener('click', function() {
+                const phoneNumber = phoneInput.value.trim();
+                
+                if (!phoneNumber) {
+                    showNotification('Please enter a phone number', 'error');
+                    return;
+                }
+
+                // Basic phone number validation
+                if (!phoneNumber.startsWith('+')) {
+                    showNotification('Phone number must start with country code (e.g., +1234567890)', 'warning');
+                    return;
+                }
+
+                if (phoneNumber.length < 10) {
+                    showNotification('Please enter a valid phone number', 'warning');
+                    return;
+                }
+
+                // Send phone number to server via Socket.io
+                if (window.savageScanner && window.savageScanner.socket) {
+                    window.savageScanner.socket.emit('set_phone_number', { phoneNumber: phoneNumber });
+                    phoneStatus.textContent = `Number set: ${phoneNumber}`;
+                    phoneStatus.className = 'status-connected';
+                    showNotification(`Phone number saved: ${phoneNumber}`, 'success');
+                } else {
+                    showNotification('Scanner not connected. Please wait...', 'error');
+                }
+            });
+
+            // Allow Enter key to save
+            phoneInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    savePhoneBtn.click();
+                }
+            });
+        }
 
         function startUptimeCounter() {
             let seconds = 0;
@@ -569,9 +728,47 @@
                           `Ctrl+Shift+L - Logout\n` +
                           `Ctrl+Shift+R - Refresh QR\n` +
                           `Ctrl+Shift+C - Copy Session ID\n` +
+                          `Ctrl+Shift+P - Focus Phone Input\n` +
                           `Ctrl+Shift+H - Show this help`);
                 }
+
+                // Ctrl+Shift+P to focus phone input
+                if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+                    e.preventDefault();
+                    document.getElementById('phoneNumber').focus();
+                }
             });
+        }
+
+        // Notification system
+        function showNotification(message, type = 'info') {
+            const notifications = document.getElementById('notifications');
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            notification.innerHTML = `
+                <span class="notification-icon">${getNotificationIcon(type)}</span>
+                <span class="notification-message">${message}</span>
+                <button class="notification-close" onclick="this.parentElement.remove()">×</button>
+            `;
+            
+            notifications.appendChild(notification);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 5000);
+        }
+
+        function getNotificationIcon(type) {
+            const icons = {
+                'success': '✅',
+                'error': '❌',
+                'warning': '⚠️',
+                'info': 'ℹ️'
+            };
+            return icons[type] || 'ℹ️';
         }
 
         // Global functions for buttons
@@ -592,6 +789,12 @@
                 window.savageScanner.handleLogout();
             }
         }
+
+        // Make functions globally available
+        window.showNotification = showNotification;
+        window.copySessionId = copySessionId;
+        window.refreshQR = refreshQR;
+        window.logout = logout;
     </script>
 </body>
 </html>
