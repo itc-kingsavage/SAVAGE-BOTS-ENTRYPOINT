@@ -37,21 +37,26 @@
         <div class="scanner-content">
             <!-- 📶 Left Column: Authentication -->
             <div class="auth-column">
-                <!-- 📱 Phone Number Input Section -->
+                <!-- 📱 Phone Number Input Section - UPDATED -->
                 <div class="terminal-container phone-container">
-                    <h3 class="section-title">📱 WHATSAPP NUMBER</h3>
+                    <h3 class="section-title">📱 WHATSAPP NUMBER SETUP</h3>
                     <div class="input-section">
                         <div class="input-group">
-                            <label for="phoneNumber">Enter Phone Number:</label>
+                            <label for="phoneNumber">Enter Owner's WhatsApp Number:</label>
                             <input type="text" id="phoneNumber" placeholder="+1234567890" class="hacker-input">
                             <small>Enter phone number with country code (e.g., +1234567890)</small>
                         </div>
-                        <button id="savePhoneBtn" class="btn btn-primary btn-small">
-                            💾 Save Number
-                        </button>
+                        <div class="button-group">
+                            <button id="savePhoneBtn" class="btn btn-primary btn-small">
+                                💾 Save Number
+                            </button>
+                            <button id="generatePairingBtn" class="btn btn-secondary btn-small" style="display: none;">
+                                🔢 Generate Pairing Code
+                            </button>
+                        </div>
                     </div>
                     <div class="phone-status">
-                        <span id="phoneStatus" class="status-waiting">No phone number set</span>
+                        <span id="phoneStatus" class="status-waiting">Enter phone number to begin</span>
                     </div>
                 </div>
 
@@ -60,26 +65,31 @@
                     <h3 class="section-title">📱 WHATSAPP QR CODE</h3>
                     <div id="qrCode" class="qr-code">
                         <div class="loading-spinner"></div>
-                        <p class="loading-text">Generating QR Code...</p>
+                        <p class="loading-text">Waiting for phone number setup...</p>
                     </div>
                     <div class="qr-status">
-                        <span id="qrStatus" class="status-waiting">Waiting for QR generation</span>
+                        <span id="qrStatus" class="status-waiting">Setup phone number first</span>
                     </div>
                     <button id="downloadQRBtn" class="btn btn-secondary btn-small" style="display: none;">
                         📥 Download QR
                     </button>
                 </div>
 
-                <!-- 🔢 Pairing Code Section -->
+                <!-- 🔢 Pairing Code Section - UPDATED -->
                 <div class="terminal-container pairing-container">
                     <h3 class="section-title">🔢 PAIRING CODE</h3>
                     <div id="pairingCode" class="pairing-code">------</div>
                     <div class="pairing-status">
-                        <span id="pairingStatus" class="status-waiting">Generating pairing code...</span>
+                        <span id="pairingStatus" class="status-waiting">Generate pairing code for your number</span>
                     </div>
-                    <button id="copyPairingBtn" class="btn btn-secondary btn-small">
-                        📋 Copy Code
-                    </button>
+                    <div class="pairing-controls">
+                        <button id="copyPairingBtn" class="btn btn-secondary btn-small">
+                            📋 Copy Code
+                        </button>
+                        <button id="generateManualPairingBtn" class="btn btn-primary btn-small" style="display: none;">
+                            🔄 Generate New Code
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -139,7 +149,7 @@
                     </div>
                 </div>
 
-                <!-- 🔑 Session Information -->
+                <!-- 🔑 Session Information - UPDATED -->
                 <div class="terminal-container session-info">
                     <h3 class="section-title">🔑 SESSION INFORMATION</h3>
                     <div class="session-details">
@@ -151,8 +161,12 @@
                             </button>
                         </div>
                         <div class="session-item">
-                            <span class="session-label">Phone Number:</span>
+                            <span class="session-label">Connected Number:</span>
                             <span id="phoneNumberDisplay" class="session-value">Not connected</span>
+                        </div>
+                        <div class="session-item">
+                            <span class="session-label">Owner Number:</span>
+                            <span id="ownerNumberDisplay" class="session-value">Not set</span>
                         </div>
                         <div class="session-item">
                             <span class="session-label">Platform:</span>
@@ -255,7 +269,7 @@
             gap: 20px;
         }
 
-        /* 📱 Phone Number Input Styles */
+        /* 📱 Phone Number Input Styles - UPDATED */
         .phone-container {
             text-align: left;
         }
@@ -266,6 +280,12 @@
 
         .input-group {
             margin-bottom: 15px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
         }
 
         .input-group label {
@@ -308,6 +328,10 @@
         .phone-status {
             margin-top: 10px;
             font-size: 0.9rem;
+            padding: 8px;
+            border-radius: var(--terminal-radius);
+            background: rgba(0, 20, 0, 0.3);
+            text-align: center;
         }
 
         .qr-container, .pairing-container {
@@ -350,6 +374,13 @@
             border: 2px solid var(--matrix-green);
             border-radius: var(--terminal-radius);
             word-break: break-all;
+        }
+
+        .pairing-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
         }
 
         /* 🤖 Bot Cards */
@@ -435,7 +466,7 @@
             color: var(--matrix-green);
         }
 
-        /* 🔑 Session Information */
+        /* 🔑 Session Information - UPDATED */
         .session-details {
             margin-top: 15px;
         }
@@ -449,6 +480,8 @@
             font-size: 0.9rem;
             opacity: 0.8;
             margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .session-value {
@@ -501,7 +534,7 @@
         .btn-small {
             padding: 8px 15px;
             font-size: 0.8rem;
-            margin: 5px;
+            margin: 5px 0;
         }
 
         /* 🔄 Status Animations */
@@ -548,6 +581,14 @@
                 font-size: 14px;
                 padding: 10px;
             }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .pairing-controls {
+                flex-direction: column;
+            }
         }
 
         @media (max-width: 480px) {
@@ -558,6 +599,7 @@
             .pairing-code {
                 font-size: 1.5rem;
                 letter-spacing: 3px;
+                padding: 10px;
             }
 
             .stat-value {
@@ -591,6 +633,7 @@
         .status-waiting { color: var(--warning-yellow); }
         .status-syncing { color: var(--accent-blue); }
         .status-error { color: var(--warning-red); }
+        .status-pairing_ready { color: var(--accent-purple); }
 
         .status-online { color: var(--matrix-bright); }
         .status-offline { color: var(--warning-red); }
@@ -602,6 +645,7 @@
             border: 2px solid var(--matrix-green);
             border-radius: 8px;
             margin: 10px 0;
+            text-align: center;
         }
 
         .manual-code {
@@ -613,6 +657,7 @@
             margin: 10px 0;
             border: 1px solid var(--matrix-green);
             border-radius: 4px;
+            color: var(--matrix-bright);
         }
     </style>
 
@@ -620,13 +665,19 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="js/scanner.js"></script>
     
-    <!-- 🌌 Scanner Initialization -->
+    <!-- 🌌 Scanner Initialization - UPDATED -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🦅 SAVAGE Scanner Interface Loaded');
             
             // Initialize phone number handling
             initializePhoneNumberInput();
+            
+            // Initialize pairing code generation
+            initializePairingCodeGeneration();
+            
+            // Initialize logout functionality
+            initializeLogout();
             
             // Initialize uptime counter
             startUptimeCounter();
@@ -644,6 +695,7 @@
         function initializePhoneNumberInput() {
             const phoneInput = document.getElementById('phoneNumber');
             const savePhoneBtn = document.getElementById('savePhoneBtn');
+            const generatePairingBtn = document.getElementById('generatePairingBtn');
             const phoneStatus = document.getElementById('phoneStatus');
 
             savePhoneBtn.addEventListener('click', function() {
@@ -668,9 +720,18 @@
                 // Send phone number to server via Socket.io
                 if (window.savageScanner && window.savageScanner.socket) {
                     window.savageScanner.socket.emit('set_phone_number', { phoneNumber: phoneNumber });
-                    phoneStatus.textContent = `Number set: ${phoneNumber}`;
+                    phoneStatus.textContent = `Owner number set: ${phoneNumber}`;
                     phoneStatus.className = 'status-connected';
-                    showNotification(`Phone number saved: ${phoneNumber}`, 'success');
+                    
+                    // Show generate pairing button
+                    generatePairingBtn.style.display = 'inline-block';
+                    
+                    showNotification(`Owner number saved: ${phoneNumber}`, 'success');
+                    
+                    // Update owner number display
+                    document.getElementById('ownerNumberDisplay').textContent = phoneNumber;
+                    document.getElementById('ownerNumberDisplay').className = 'session-value status-connected';
+                    
                 } else {
                     showNotification('Scanner not connected. Please wait...', 'error');
                 }
@@ -680,6 +741,76 @@
             phoneInput.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {
                     savePhoneBtn.click();
+                }
+            });
+        }
+
+        function initializePairingCodeGeneration() {
+            const generatePairingBtn = document.getElementById('generatePairingBtn');
+            const generateManualPairingBtn = document.getElementById('generateManualPairingBtn');
+            const phoneInput = document.getElementById('phoneNumber');
+
+            generatePairingBtn.addEventListener('click', function() {
+                const phoneNumber = phoneInput.value.trim();
+                
+                if (!phoneNumber) {
+                    showNotification('Please enter a phone number first', 'error');
+                    return;
+                }
+
+                if (window.savageScanner && window.savageScanner.socket) {
+                    // Show loading state
+                    generatePairingBtn.textContent = '⏳ Generating...';
+                    generatePairingBtn.disabled = true;
+
+                    window.savageScanner.socket.emit('generate_pairing_code', { phoneNumber: phoneNumber });
+                    
+                    // Reset button after 3 seconds
+                    setTimeout(() => {
+                        generatePairingBtn.textContent = '🔢 Generate Pairing Code';
+                        generatePairingBtn.disabled = false;
+                    }, 3000);
+                } else {
+                    showNotification('Scanner not connected', 'error');
+                }
+            });
+
+            generateManualPairingBtn.addEventListener('click', function() {
+                const phoneNumber = phoneInput.value.trim();
+                
+                if (!phoneNumber) {
+                    showNotification('Please enter a phone number first', 'error');
+                    return;
+                }
+
+                if (window.savageScanner && window.savageScanner.socket) {
+                    window.savageScanner.socket.emit('generate_pairing_code', { phoneNumber: phoneNumber });
+                    showNotification('Generating new pairing code...', 'info');
+                }
+            });
+        }
+
+        function initializeLogout() {
+            const logoutBtn = document.getElementById('logoutBtn');
+
+            logoutBtn.addEventListener('click', function() {
+                if (window.savageScanner && window.savageScanner.socket) {
+                    // Show confirmation
+                    if (confirm('Are you sure you want to logout? This will disconnect WhatsApp and clear all sessions.')) {
+                        // Show loading state
+                        logoutBtn.textContent = '⏳ Logging out...';
+                        logoutBtn.disabled = true;
+
+                        window.savageScanner.socket.emit('logout_request');
+                        
+                        // Reset button after 5 seconds
+                        setTimeout(() => {
+                            logoutBtn.textContent = '🚪 LOGOUT';
+                            logoutBtn.disabled = false;
+                        }, 5000);
+                    }
+                } else {
+                    showNotification('Scanner not connected', 'error');
                 }
             });
         }
@@ -729,6 +860,7 @@
                           `Ctrl+Shift+R - Refresh QR\n` +
                           `Ctrl+Shift+C - Copy Session ID\n` +
                           `Ctrl+Shift+P - Focus Phone Input\n` +
+                          `Ctrl+Shift+G - Generate Pairing Code\n` +
                           `Ctrl+Shift+H - Show this help`);
                 }
 
@@ -736,6 +868,12 @@
                 if (e.ctrlKey && e.shiftKey && e.key === 'P') {
                     e.preventDefault();
                     document.getElementById('phoneNumber').focus();
+                }
+
+                // Ctrl+Shift+G to generate pairing code
+                if (e.ctrlKey && e.shiftKey && e.key === 'G') {
+                    e.preventDefault();
+                    document.getElementById('generatePairingBtn').click();
                 }
             });
         }
