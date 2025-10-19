@@ -1,6 +1,7 @@
 /**
  * 🦅 SAVAGE BOTS SCANNER - Constants & Configuration
  * Centralized configuration for SAVAGE BOTS ecosystem
+ * UPDATED for Baileys v6.4.0 Compatibility
  */
 
 const path = require('path');
@@ -10,7 +11,7 @@ const path = require('path');
 // =============================================================================
 const SCANNER_IDENTITY = {
     NAME: 'SAVAGE BOTS SCANNER',
-    VERSION: '1.0.0',
+    VERSION: '2.0.0',
     CODE_NAME: 'PROJECT-XMD',
     DEVELOPER: 'SAVAGE BOTS TECHNOLOGY',
     MOTTO: 'When ordinary isn\'t an option',
@@ -77,20 +78,34 @@ const SECURITY_CONFIG = {
 };
 
 // =============================================================================
-// 📱 WHATSAPP BAILEYS CONFIGURATION
+// 📱 WHATSAPP BAILEYS CONFIGURATION (v6.4.0 COMPATIBLE)
 // =============================================================================
 const WHATSAPP_CONFIG = {
-    // Baileys connection settings
+    // Baileys connection settings - UPDATED for v6.4.0
     BAILEYS: {
-        VERSION: '2.2412.54',
-        BROWSER: ['Ubuntu', 'Chrome', '110.0.5481.100'],
-        SYNC_FULL_HISTORY: false,
-        MARK_ONLINE_ON_CONNECT: false,
-        LINK_PREVIEW_IMAGE_THUMBNAIL_WIDTH: 192,
-        TRANSACTION_STATUS: {
-            PENDING: 'PENDING',
-            SUCCESS: 'SUCCESS',
-            FAILED: 'FAILED'
+        VERSION: [2, 2413, 1], // ✅ Compatible with Baileys 6.4.0
+        BROWSER: ["SAVAGE BOTS SCANNER", "Chrome", "121.0.0.0"],
+        MARK_ONLINE_ON_CONNECT: false, // ✅ Anti-ban
+        SYNC_FULL_HISTORY: false, // ✅ Performance
+        GENERATE_HIGH_QUALITY_LINK: true, // ✅ Better QR codes
+        FIRE_INIT_QUERIES: true,
+        AUTH_PATH: './savage_auth',
+        MAX_QR_RETRIES: 3,
+        CONNECTION_TIMEOUT: 30000,
+        
+        // ✅ FIXED: Proper logger configuration for Baileys v6.4.0
+        LOGGER: {
+            level: 'silent',
+            timestamp: () => `[${new Date().toISOString()}]`
+        },
+
+        // ✅ ADDED: Connection settings for stability
+        CONNECTION: {
+            retryRequestDelayMs: 3000,
+            maxRetries: 5,
+            connectTimeoutMs: 30000,
+            keepAliveIntervalMs: 30000,
+            printQRInTerminal: false
         },
         
         // Anti-ban settings
@@ -105,14 +120,24 @@ const WHATSAPP_CONFIG = {
     
     // QR Code settings
     QR: {
-        WIDTH: 300,
+        WIDTH: 400, // ✅ INCREASED: Better visibility
+        HEIGHT: 400,
         MARGIN: 2,
         COLOR: {
             DARK: '#00FF00', // Matrix green
             LIGHT: '#000000' // Black
         },
-        TIMEOUT: 300000, // 5 minutes
+        TIMEOUT: 120000, // ✅ REDUCED: 2 minutes for better UX
         REGENERATE_INTERVAL: 60000 // 1 minute
+    },
+    
+    // Scanner connection management
+    SCANNER: {
+        AUTO_RECONNECT: true,
+        MAX_RECONNECT_ATTEMPTS: 5,
+        RECONNECT_DELAY: 5000,
+        QR_TIMEOUT: 120000, // 2 minutes
+        CONNECTION_TIMEOUT: 30000
     },
     
     // Pairing code settings
@@ -188,7 +213,9 @@ const SERVER_CONFIG = {
             'https://savage-bots-scanner.onrender.com',
             'https://*.onrender.com',
             'http://localhost:3000',
-            'http://127.0.0.1:3000'
+            'http://127.0.0.1:3000',
+            'http://localhost:8080',
+            'http://127.0.0.1:8080'
         ],
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -277,10 +304,19 @@ const UI_CONFIG = {
     
     // Scanner interface
     SCANNER: {
-        QR_SIZE: 300,
+        QR_SIZE: 400, // ✅ INCREASED: Better visibility
         STATUS_REFRESH: 5000, // 5 seconds
         AUTO_RECONNECT: true,
-        CONNECTION_TIMEOUT: 300000 // 5 minutes
+        CONNECTION_TIMEOUT: 300000, // 5 minutes
+        
+        // ✅ ADDED: Connection status indicators
+        STATUS_COLORS: {
+            CONNECTED: '#00FF00',
+            DISCONNECTED: '#FF0000',
+            CONNECTING: '#FFFF00',
+            QR_READY: '#00FFFF',
+            SYNCING: '#FF00FF'
+        }
     }
 };
 
@@ -290,10 +326,15 @@ const UI_CONFIG = {
 const MESSAGES = {
     // Connection flow messages
     CONNECTION: {
-        SYNCING: '🦅 SAVAGE BOTS SCANNER - Syncing with WhatsApp...',
+        INITIALIZING: '🦅 SAVAGE BOTS SCANNER - Initializing...',
+        WAITING_QR: '📱 Waiting for QR code generation...',
+        QR_READY: '✅ QR code ready - Scan with your phone',
+        CONNECTING: '🔗 Connecting to WhatsApp...',
+        SYNCING: '🔄 Syncing with WhatsApp...',
         SUCCESS: '✅ Connection established successfully!',
         FAILED: '❌ Connection failed. Please try again.',
-        TIMEOUT: '⏰ Connection timeout. Regenerating QR code...'
+        TIMEOUT: '⏰ Connection timeout. Regenerating QR code...',
+        DISCONNECTED: '🔌 WhatsApp connection lost. Reconnecting...'
     },
     
     // Introduction messages (sent after successful connection)
@@ -319,7 +360,18 @@ const MESSAGES = {
         SESSION_EXPIRED: '📱 Session expired. Please scan QR code again.',
         DATABASE_ERROR: '🗄️ Database connection error. Please try again.',
         RATE_LIMITED: '⚡ Rate limit exceeded. Please wait before trying again.',
-        BOT_CONNECTION_FAILED: '🤖 Bot connection failed. Check session ID and try again.'
+        BOT_CONNECTION_FAILED: '🤖 Bot connection failed. Check session ID and try again.',
+        WHATSAPP_INIT_FAILED: '❌ WhatsApp initialization failed. Running in limited mode.',
+        QR_GENERATION_FAILED: '❌ QR code generation failed. Please refresh.'
+    },
+    
+    // Status messages for frontend
+    STATUS: {
+        SCANNER_READY: '🦅 Scanner is ready and waiting for connection',
+        WHATSAPP_CONNECTED: '✅ WhatsApp connected and ready',
+        WHATSAPP_DISCONNECTED: '🔌 WhatsApp disconnected',
+        BOTS_CONNECTED: '🤖 Bots connected and operational',
+        LIMITED_MODE: '⚠️ Running in limited mode - WhatsApp unavailable'
     }
 };
 
@@ -330,30 +382,33 @@ const DEPLOYMENT = {
     // Supported platforms
     PLATFORMS: {
         RENDER: {
-            NAME: 'render',
-            ENV_VARS: ['SCANNER_PASSWORD', 'MONGODB_URI', 'SESSION_ENCRYPTION_KEY'],
-            PORT: 10000,
-            DISK_PATH: '/tmp'
-        },
-        HEROKU: {
-            NAME: 'heroku', 
+            NAME: 'Render',
             ENV_VARS: ['SCANNER_PASSWORD', 'MONGODB_URI', 'SESSION_ENCRYPTION_KEY'],
             PORT: process.env.PORT || 3000,
-            DISK_PATH: '/tmp'
+            DISK_PATH: '/tmp',
+            HOST: '0.0.0.0'
+        },
+        HEROKU: {
+            NAME: 'Heroku', 
+            ENV_VARS: ['SCANNER_PASSWORD', 'MONGODB_URI', 'SESSION_ENCRYPTION_KEY'],
+            PORT: process.env.PORT || 3000,
+            DISK_PATH: '/tmp',
+            HOST: '0.0.0.0'
         },
         LOCAL: {
-            NAME: 'local',
+            NAME: 'Local Development',
             ENV_VARS: ['SCANNER_PASSWORD', 'MONGODB_URI', 'SESSION_ENCRYPTION_KEY'],
             PORT: 3000,
-            DISK_PATH: './sessions'
+            DISK_PATH: './savage_auth',
+            HOST: 'localhost'
         }
     },
     
     // Environment detection
     getCurrentPlatform() {
-        if (process.env.RENDER) return DEPLOYMENT.PLATFORMS.RENDER;
-        if (process.env.HEROKU) return DEPLOYMENT.PLATFORMS.HEROKU;
-        return DEPLOYMENT.PLATFORMS.LOCAL;
+        if (process.env.RENDER) return this.PLATFORMS.RENDER;
+        if (process.env.HEROKU) return this.PLATFORMS.HEROKU;
+        return this.PLATFORMS.LOCAL;
     },
     
     // Check if all required environment variables are set
@@ -362,7 +417,8 @@ const DEPLOYMENT = {
         const missingVars = platform.ENV_VARS.filter(varName => !process.env[varName]);
         
         if (missingVars.length > 0) {
-            throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+            console.warn(`⚠️ Missing environment variables: ${missingVars.join(', ')}`);
+            return false;
         }
         
         return true;
@@ -411,18 +467,12 @@ module.exports = {
     
     // Utility functions
     generateSessionId() {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        const timestamp = Math.floor(Date.now() / 1000);
+        const crypto = require('crypto');
+        const timestamp = Date.now().toString(36);
+        const random = crypto.randomBytes(8).toString('hex');
+        const uuid = require('uuid').v4().replace(/-/g, '').substring(0, 16);
         
-        let randomPart1 = '';
-        let randomPart2 = '';
-        
-        for (let i = 0; i < 12; i++) {
-            randomPart1 += chars.charAt(Math.floor(Math.random() * chars.length));
-            randomPart2 += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        
-        return `${BOT_CONFIG.AUTH.SESSION_ID_PREFIX}-${randomPart1}-${timestamp}-${randomPart2}`;
+        return `savage-${timestamp}-${random}-${uuid}`.toLowerCase();
     },
     
     // Get bot configuration by name
@@ -432,12 +482,30 @@ module.exports = {
     
     // Validate session ID format
     isValidSessionId(sessionId) {
-        const pattern = /^SAVAGE-XMD-BOT-SESSION-[A-Z0-9]{12}-\d{10}-[A-Z0-9]{12}$/;
-        return pattern.test(sessionId);
+        return sessionId && sessionId.startsWith('savage-') && sessionId.length > 20;
     },
     
     // Get current platform configuration
     getPlatformConfig() {
         return DEPLOYMENT.getCurrentPlatform();
+    },
+    
+    // ✅ ADDED: Check if WhatsApp is properly configured
+    isWhatsAppConfigured() {
+        return WHATSAPP_CONFIG && WHATSAPP_CONFIG.BAILEYS && WHATSAPP_CONFIG.BAILEYS.VERSION;
+    },
+    
+    // ✅ ADDED: Get connection timeout settings
+    getConnectionTimeout() {
+        return WHATSAPP_CONFIG.SCANNER.CONNECTION_TIMEOUT;
+    },
+    
+    // ✅ ADDED: Get reconnection settings
+    getReconnectionSettings() {
+        return {
+            maxAttempts: WHATSAPP_CONFIG.SCANNER.MAX_RECONNECT_ATTEMPTS,
+            delay: WHATSAPP_CONFIG.SCANNER.RECONNECT_DELAY,
+            autoReconnect: WHATSAPP_CONFIG.SCANNER.AUTO_RECONNECT
+        };
     }
 };
