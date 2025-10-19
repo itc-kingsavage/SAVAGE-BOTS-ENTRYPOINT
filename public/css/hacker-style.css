@@ -2,6 +2,7 @@
  * 🦅 SAVAGE BOTS SCANNER - Hacker Theme CSS
  * Burning cards background + Matrix effects
  * Green-on-black terminal style
+ * UPDATED: Automatic QR Generation & Render Deployment
  */
 
 /* =============================================================================
@@ -54,9 +55,8 @@ body::before {
     height: 100%;
     background: 
         /* 🔥 Burning cards overlay */
-        url('../assets/images/burning-cards.png') center/cover no-repeat,
+        linear-gradient(45deg, rgba(255, 0, 0, 0.1) 0%, rgba(0, 255, 0, 0.1) 50%, rgba(0, 0, 255, 0.1) 100%),
         /* 🌌 Dark matrix overlay */
-        linear-gradient(45deg, rgba(0, 255, 0, 0.1) 0%, transparent 50%),
         radial-gradient(circle at 20% 80%, rgba(255, 0, 0, 0.1) 0%, transparent 40%),
         radial-gradient(circle at 80% 20%, rgba(0, 0, 255, 0.1) 0%, transparent 40%);
     opacity: 0.7;
@@ -173,9 +173,18 @@ body::before {
     width: 120px;
     height: 120px;
     margin: 0 auto 20px;
-    background: url('../assets/images/savage-logo.png') center/contain no-repeat;
+    background: linear-gradient(45deg, var(--matrix-green), var(--matrix-bright));
+    border-radius: 50%;
     filter: drop-shadow(0 0 15px var(--matrix-green));
     animation: logoPulse 4s ease-in-out infinite;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+}
+
+.savage-logo::before {
+    content: '🦅';
 }
 
 @keyframes logoPulse {
@@ -272,9 +281,10 @@ body::before {
 .status-syncing { background: rgba(255, 255, 0, 0.2); border-color: var(--warning-yellow); animation: pulse 2s infinite; }
 .status-disconnected { background: rgba(255, 0, 0, 0.2); border-color: var(--warning-red); }
 .status-pairing_ready { background: rgba(255, 0, 255, 0.2); border-color: var(--accent-purple); animation: pulse 2s infinite; }
+.status-waiting_qr { background: rgba(0, 136, 255, 0.2); border-color: var(--accent-blue); animation: pulse 2s infinite; }
 
 /* =============================================================================
-   📱 SCANNER CONTENT LAYOUT - UPDATED
+   📱 SCANNER CONTENT LAYOUT - UPDATED FOR AUTOMATIC MODE
    ============================================================================= */
 .scanner-content {
     display: grid;
@@ -302,83 +312,9 @@ body::before {
 }
 
 /* =============================================================================
-   📱 PHONE NUMBER INPUT SECTION - UPDATED STYLES
+   📶 QR CODE SECTION - UPDATED FOR AUTOMATIC GENERATION
    ============================================================================= */
-.phone-container {
-    text-align: left;
-    padding: 25px;
-}
-
-.input-section {
-    margin: 15px 0;
-}
-
-.input-group {
-    margin-bottom: 15px;
-}
-
-.button-group {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 15px;
-}
-
-.input-group label {
-    display: block;
-    margin-bottom: 8px;
-    color: var(--matrix-green);
-    font-weight: bold;
-    font-size: 0.9rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.hacker-input {
-    width: 100%;
-    padding: 12px 15px;
-    background: rgba(0, 0, 0, 0.7);
-    border: 1px solid var(--matrix-green);
-    border-radius: 4px;
-    color: var(--matrix-green);
-    font-family: 'Courier New', monospace;
-    font-size: 16px;
-    transition: all 0.3s ease;
-}
-
-.hacker-input:focus {
-    outline: none;
-    border-color: var(--matrix-bright);
-    box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
-    background: rgba(0, 20, 0, 0.8);
-}
-
-.hacker-input::placeholder {
-    color: #008000;
-    opacity: 0.7;
-}
-
-.input-group small {
-    color: #008000;
-    font-size: 0.8rem;
-    margin-top: 5px;
-    display: block;
-    opacity: 0.8;
-}
-
-.phone-status {
-    margin-top: 10px;
-    font-size: 0.9rem;
-    text-align: center;
-    padding: 8px;
-    border-radius: var(--terminal-radius);
-    background: rgba(0, 20, 0, 0.3);
-}
-
-/* =============================================================================
-   📶 QR CODE & PAIRING SECTION - UPDATED
-   ============================================================================= */
-.qr-container, .pairing-container {
+.qr-container {
     padding: 25px;
     text-align: center;
 }
@@ -392,7 +328,7 @@ body::before {
 }
 
 .qr-code {
-    min-height: 300px;
+    min-height: 400px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -402,19 +338,60 @@ body::before {
     margin: 15px 0;
     position: relative;
     overflow: hidden;
+    border: 3px solid var(--matrix-green);
 }
 
 .qr-code img {
     max-width: 100%;
     max-height: 100%;
-    border: 2px solid var(--matrix-green);
     border-radius: 8px;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid var(--matrix-green);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 .loading-text {
     margin-top: 15px;
     color: #666;
     font-style: italic;
+    font-size: 1.1rem;
+}
+
+.qr-controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 15px;
+}
+
+.qr-status {
+    margin-top: 10px;
+    font-size: 0.9rem;
+    padding: 8px;
+    border-radius: var(--terminal-radius);
+    background: rgba(0, 20, 0, 0.3);
+    text-align: center;
+}
+
+/* =============================================================================
+   🔢 PAIRING CODE SECTION - UPDATED FOR AUTOMATIC MODE
+   ============================================================================= */
+.pairing-container {
+    text-align: center;
+    padding: 25px;
 }
 
 .pairing-code {
@@ -451,7 +428,45 @@ body::before {
 }
 
 /* =============================================================================
-   📱 MANUAL QR CODE FALLBACK - NEW STYLES
+   🔗 CONNECTION INFO SECTION - NEW FOR AUTOMATIC MODE
+   ============================================================================= */
+.connection-info {
+    padding: 25px;
+    text-align: left;
+}
+
+.connection-details {
+    margin-top: 15px;
+}
+
+.connection-item {
+    margin: 12px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.connection-label {
+    opacity: 0.8;
+    font-size: 0.9rem;
+}
+
+.connection-value {
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.state-automatic {
+    background: rgba(0, 255, 0, 0.2);
+    border: 1px solid var(--matrix-green);
+    color: var(--matrix-bright);
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+}
+
+/* =============================================================================
+   📱 MANUAL QR CODE FALLBACK - UPDATED
    ============================================================================= */
 .manual-qr-fallback {
     padding: 20px;
@@ -576,7 +591,7 @@ body::before {
 }
 
 /* =============================================================================
-   🔑 SESSION INFORMATION - UPDATED
+   🔑 SESSION INFORMATION - UPDATED FOR AUTOMATIC MODE
    ============================================================================= */
 .session-info {
     padding: 25px;
@@ -756,7 +771,7 @@ body::before {
 }
 
 /* =============================================================================
-   ⚠️ NOTIFICATIONS SYSTEM - NEW STYLES
+   ⚠️ NOTIFICATIONS SYSTEM - UPDATED
    ============================================================================= */
 .notifications-container {
     position: fixed;
@@ -851,23 +866,8 @@ body::before {
     50% { opacity: 0.5; }
 }
 
-.loading-spinner {
-    width: 50px;
-    height: 50px;
-    border: 3px solid rgba(0, 255, 0, 0.3);
-    border-top: 3px solid var(--matrix-green);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin: 0 auto;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
 /* =============================================================================
-   🎯 STATUS INDICATORS - UPDATED
+   🎯 STATUS INDICATORS - UPDATED FOR AUTOMATIC MODE
    ============================================================================= */
 .status-connected { color: var(--matrix-bright); }
 .status-disconnected { color: var(--warning-red); }
@@ -876,6 +876,8 @@ body::before {
 .status-error { color: var(--warning-red); }
 .status-reconnecting { color: var(--warning-orange); }
 .status-pairing_ready { color: var(--accent-purple); }
+.status-qr_ready { color: var(--matrix-bright); }
+.status-waiting_qr { color: var(--accent-blue); }
 
 .status-online { color: var(--matrix-bright); }
 .status-offline { color: var(--warning-red); }
@@ -883,12 +885,13 @@ body::before {
 
 .status-connecting,
 .status-reconnecting,
-.status-pairing_ready {
+.status-pairing_ready,
+.status-waiting_qr {
     animation: pulse 1.5s infinite;
 }
 
 /* =============================================================================
-   ✨ QR CODE LOADING STATES - NEW
+   ✨ QR CODE LOADING STATES - UPDATED
    ============================================================================= */
 .qr-code.loading {
     background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
@@ -911,20 +914,15 @@ body::before {
     .bots-grid { grid-template-columns: 1fr; }
     .pairing-code { font-size: 2rem; letter-spacing: 5px; padding: 15px; }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
-    .hacker-input { font-size: 14px; padding: 10px; }
     .notifications-container {
         left: 10px;
         right: 10px;
         max-width: none;
     }
-    .phone-container {
-        text-align: center;
+    .qr-code {
+        min-height: 300px;
     }
-    .button-group {
-        flex-direction: column;
-        align-items: center;
-    }
-    .pairing-controls {
+    .qr-controls, .pairing-controls {
         flex-direction: column;
         align-items: center;
     }
@@ -1105,4 +1103,38 @@ select:focus {
     color: var(--accent-blue);
     border: 1px solid var(--accent-blue);
     animation: pulse 2s infinite;
+}
+
+/* =============================================================================
+   🆕 AUTO-GENERATION STATUS STYLES
+   ============================================================================= */
+.auto-generation-active {
+    background: rgba(0, 255, 0, 0.1);
+    border: 1px solid var(--matrix-green);
+    padding: 10px;
+    border-radius: var(--terminal-radius);
+    text-align: center;
+    margin: 10px 0;
+    animation: pulse 2s infinite;
+}
+
+.connection-state {
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.state-automatic {
+    background: rgba(0, 255, 0, 0.2);
+    border: 1px solid var(--matrix-green);
+    color: var(--matrix-bright);
+}
+
+.state-manual {
+    background: rgba(255, 255, 0, 0.2);
+    border: 1px solid var(--warning-yellow);
+    color: var(--warning-yellow);
 }
