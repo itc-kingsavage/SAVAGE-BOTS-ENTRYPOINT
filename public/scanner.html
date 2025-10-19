@@ -37,58 +37,60 @@
         <div class="scanner-content">
             <!-- 📶 Left Column: Authentication -->
             <div class="auth-column">
-                <!-- 📱 Phone Number Input Section - UPDATED -->
-                <div class="terminal-container phone-container">
-                    <h3 class="section-title">📱 WHATSAPP NUMBER SETUP</h3>
-                    <div class="input-section">
-                        <div class="input-group">
-                            <label for="phoneNumber">Enter Owner's WhatsApp Number:</label>
-                            <input type="text" id="phoneNumber" placeholder="+1234567890" class="hacker-input">
-                            <small>Enter phone number with country code (e.g., +1234567890)</small>
-                        </div>
-                        <div class="button-group">
-                            <button id="savePhoneBtn" class="btn btn-primary btn-small">
-                                💾 Save Number
-                            </button>
-                            <button id="generatePairingBtn" class="btn btn-secondary btn-small" style="display: none;">
-                                🔢 Generate Pairing Code
-                            </button>
-                        </div>
-                    </div>
-                    <div class="phone-status">
-                        <span id="phoneStatus" class="status-waiting">Enter phone number to begin</span>
-                    </div>
-                </div>
-
-                <!-- 🔐 QR Code Section -->
+                <!-- 🔐 QR Code Section - UPDATED: Automatic Generation -->
                 <div class="terminal-container qr-container">
                     <h3 class="section-title">📱 WHATSAPP QR CODE</h3>
                     <div id="qrCode" class="qr-code">
                         <div class="loading-spinner"></div>
-                        <p class="loading-text">Waiting for phone number setup...</p>
+                        <p class="loading-text">Generating QR code automatically...</p>
                     </div>
                     <div class="qr-status">
-                        <span id="qrStatus" class="status-waiting">Setup phone number first</span>
+                        <span id="qrStatus" class="status-waiting">QR code will generate automatically</span>
                     </div>
-                    <button id="downloadQRBtn" class="btn btn-secondary btn-small" style="display: none;">
-                        📥 Download QR
-                    </button>
+                    <div class="qr-controls">
+                        <button id="downloadQRBtn" class="btn btn-secondary btn-small" style="display: none;">
+                            📥 Download QR
+                        </button>
+                        <button id="refreshQRBtn" class="btn btn-primary btn-small">
+                            🔄 Refresh QR
+                        </button>
+                    </div>
                 </div>
 
-                <!-- 🔢 Pairing Code Section - UPDATED -->
+                <!-- 🔢 Pairing Code Section - UPDATED: Auto-generated -->
                 <div class="terminal-container pairing-container">
                     <h3 class="section-title">🔢 PAIRING CODE</h3>
                     <div id="pairingCode" class="pairing-code">------</div>
                     <div class="pairing-status">
-                        <span id="pairingStatus" class="status-waiting">Generate pairing code for your number</span>
+                        <span id="pairingStatus" class="status-waiting">Pairing code will generate automatically</span>
                     </div>
                     <div class="pairing-controls">
                         <button id="copyPairingBtn" class="btn btn-secondary btn-small">
                             📋 Copy Code
                         </button>
-                        <button id="generateManualPairingBtn" class="btn btn-primary btn-small" style="display: none;">
-                            🔄 Generate New Code
-                        </button>
+                    </div>
+                </div>
+
+                <!-- 📱 Connection Status - NEW: Auto-connection info -->
+                <div class="terminal-container connection-info">
+                    <h3 class="section-title">🔗 CONNECTION STATUS</h3>
+                    <div class="connection-details">
+                        <div class="connection-item">
+                            <span class="connection-label">QR Status:</span>
+                            <span id="qrState" class="connection-value status-waiting">Waiting for generation</span>
+                        </div>
+                        <div class="connection-item">
+                            <span class="connection-label">Auto-generation:</span>
+                            <span class="connection-value status-connected">ACTIVE</span>
+                        </div>
+                        <div class="connection-item">
+                            <span class="connection-label">Platform:</span>
+                            <span id="platformInfo" class="connection-value">Render Deployment</span>
+                        </div>
+                        <div class="connection-item">
+                            <span class="connection-label">Scanner Mode:</span>
+                            <span class="connection-value status-connected">AUTOMATIC</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -149,28 +151,28 @@
                     </div>
                 </div>
 
-                <!-- 🔑 Session Information - UPDATED -->
+                <!-- 🔑 Session Information - UPDATED: Auto-detection -->
                 <div class="terminal-container session-info">
                     <h3 class="section-title">🔑 SESSION INFORMATION</h3>
                     <div class="session-details">
                         <div class="session-item">
                             <span class="session-label">Session ID:</span>
-                            <div id="sessionId" class="session-id">SAVAGE-XMD-BOT-SESSION-XXXXXXXXXXXX-XXXXXXXXXX-XXXXXXXXXXXX</div>
+                            <div id="sessionId" class="session-id">Waiting for WhatsApp connection...</div>
                             <button id="copySessionBtn" class="btn btn-secondary btn-small">
                                 📋 Copy Session ID
                             </button>
                         </div>
                         <div class="session-item">
                             <span class="session-label">Connected Number:</span>
-                            <span id="phoneNumberDisplay" class="session-value">Not connected</span>
+                            <span id="phoneNumberDisplay" class="session-value status-waiting">Not connected</span>
                         </div>
                         <div class="session-item">
-                            <span class="session-label">Owner Number:</span>
-                            <span id="ownerNumberDisplay" class="session-value">Not set</span>
+                            <span class="session-label">Connection Type:</span>
+                            <span class="session-value status-connected">AUTOMATIC QR</span>
                         </div>
                         <div class="session-item">
                             <span class="session-label">Platform:</span>
-                            <span id="platformInfo" class="session-value">SAVAGE BOTS SCANNER</span>
+                            <span id="platformDisplay" class="session-value">SAVAGE BOTS SCANNER</span>
                         </div>
                         <div class="session-item">
                             <span class="session-label">Status:</span>
@@ -211,7 +213,7 @@
         <div class="savage-footer">
             <p>🦅 SAVAGE BOTS TECHNOLOGY | MULTI-BOT WHATSAPP SYSTEM</p>
             <p class="footer-motto">"When ordinary isn't an option"</p>
-            <p class="footer-version">v1.0.0 | PROJECT-XMD | SESSION: <span id="footerSession">NOT-ACTIVE</span></p>
+            <p class="footer-version">v2.0.0 | PROJECT-XMD | SESSION: <span id="footerSession">NOT-ACTIVE</span></p>
         </div>
     </div>
 
@@ -269,77 +271,13 @@
             gap: 20px;
         }
 
-        /* 📱 Phone Number Input Styles - UPDATED */
-        .phone-container {
-            text-align: left;
-        }
-
-        .input-section {
-            margin: 15px 0;
-        }
-
-        .input-group {
-            margin-bottom: 15px;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .input-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: var(--matrix-green);
-            font-weight: bold;
-            font-size: 0.9rem;
-        }
-
-        .hacker-input {
-            width: 100%;
-            padding: 12px;
-            background: rgba(0, 0, 0, 0.7);
-            border: 1px solid var(--matrix-green);
-            border-radius: 4px;
-            color: var(--matrix-green);
-            font-family: 'Courier New', monospace;
-            font-size: 16px;
-            transition: all 0.3s ease;
-        }
-
-        .hacker-input:focus {
-            outline: none;
-            border-color: var(--matrix-bright);
-            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
-        }
-
-        .hacker-input::placeholder {
-            color: #008000;
-        }
-
-        .input-group small {
-            color: #008000;
-            font-size: 0.8rem;
-            margin-top: 5px;
-            display: block;
-        }
-
-        .phone-status {
-            margin-top: 10px;
-            font-size: 0.9rem;
-            padding: 8px;
-            border-radius: var(--terminal-radius);
-            background: rgba(0, 20, 0, 0.3);
-            text-align: center;
-        }
-
-        .qr-container, .pairing-container {
+        /* 📱 QR Code Section - UPDATED */
+        .qr-container {
             text-align: center;
         }
 
         .qr-code {
-            min-height: 300px;
+            min-height: 400px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -349,19 +287,57 @@
             margin: 15px 0;
             position: relative;
             overflow: hidden;
+            border: 3px solid var(--matrix-green);
         }
 
         .qr-code img {
             max-width: 100%;
             max-height: 100%;
-            border: 2px solid var(--matrix-green);
             border-radius: 8px;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--matrix-green);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         .loading-text {
             margin-top: 15px;
             color: #666;
             font-style: italic;
+            font-size: 1.1rem;
+        }
+
+        .qr-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        .qr-status {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            padding: 8px;
+            border-radius: var(--terminal-radius);
+            background: rgba(0, 20, 0, 0.3);
+            text-align: center;
+        }
+
+        /* 🔢 Pairing Code Section - UPDATED */
+        .pairing-container {
+            text-align: center;
         }
 
         .pairing-code {
@@ -381,6 +357,32 @@
             gap: 10px;
             justify-content: center;
             flex-wrap: wrap;
+        }
+
+        /* 🔗 Connection Info - NEW */
+        .connection-info {
+            text-align: left;
+        }
+
+        .connection-details {
+            margin-top: 15px;
+        }
+
+        .connection-item {
+            margin: 12px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .connection-label {
+            opacity: 0.8;
+            font-size: 0.9rem;
+        }
+
+        .connection-value {
+            font-weight: bold;
+            font-size: 0.9rem;
         }
 
         /* 🤖 Bot Cards */
@@ -577,17 +579,8 @@
                 grid-template-columns: repeat(2, 1fr);
             }
 
-            .hacker-input {
-                font-size: 14px;
-                padding: 10px;
-            }
-
-            .button-group {
-                flex-direction: column;
-            }
-
-            .pairing-controls {
-                flex-direction: column;
+            .qr-code {
+                min-height: 300px;
             }
         }
 
@@ -610,8 +603,8 @@
                 padding: 15px;
             }
 
-            .phone-container {
-                text-align: center;
+            .qr-controls, .pairing-controls {
+                flex-direction: column;
             }
         }
 
@@ -634,30 +627,41 @@
         .status-syncing { color: var(--accent-blue); }
         .status-error { color: var(--warning-red); }
         .status-pairing_ready { color: var(--accent-purple); }
+        .status-qr_ready { color: var(--matrix-bright); }
 
         .status-online { color: var(--matrix-bright); }
         .status-offline { color: var(--warning-red); }
 
-        /* 📱 Manual QR Code Fallback */
-        .manual-qr-fallback {
-            padding: 20px;
-            background: rgba(0, 0, 0, 0.8);
-            border: 2px solid var(--matrix-green);
-            border-radius: 8px;
-            margin: 10px 0;
+        /* 📱 Auto-generation Status */
+        .auto-generation-active {
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid var(--matrix-green);
+            padding: 10px;
+            border-radius: var(--terminal-radius);
             text-align: center;
+            margin: 10px 0;
         }
 
-        .manual-code {
-            font-family: 'Courier New', monospace;
-            font-size: 1.2rem;
-            word-break: break-all;
-            background: #000;
-            padding: 15px;
-            margin: 10px 0;
+        /* 🔄 Connection States */
+        .connection-state {
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .state-automatic {
+            background: rgba(0, 255, 0, 0.2);
             border: 1px solid var(--matrix-green);
-            border-radius: 4px;
             color: var(--matrix-bright);
+        }
+
+        .state-manual {
+            background: rgba(255, 255, 0, 0.2);
+            border: 1px solid var(--warning-yellow);
+            color: var(--warning-yellow);
         }
     </style>
 
@@ -665,16 +669,16 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="js/scanner.js"></script>
     
-    <!-- 🌌 Scanner Initialization - UPDATED -->
+    <!-- 🌌 Scanner Initialization - UPDATED: Automatic QR Generation -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🦅 SAVAGE Scanner Interface Loaded');
+            console.log('🦅 SAVAGE Scanner Interface Loaded - Automatic QR Mode');
             
-            // Initialize phone number handling
-            initializePhoneNumberInput();
+            // Update UI for automatic mode
+            updateUIForAutomaticMode();
             
-            // Initialize pairing code generation
-            initializePairingCodeGeneration();
+            // Initialize automatic QR handling
+            initializeAutomaticQR();
             
             // Initialize logout functionality
             initializeLogout();
@@ -690,102 +694,74 @@
             
             // Add keyboard shortcuts help
             setupKeyboardHelp();
+            
+            // Show welcome message
+            showNotification('🦅 SAVAGE SCANNER READY - QR codes generate automatically', 'success');
         });
 
-        function initializePhoneNumberInput() {
-            const phoneInput = document.getElementById('phoneNumber');
-            const savePhoneBtn = document.getElementById('savePhoneBtn');
-            const generatePairingBtn = document.getElementById('generatePairingBtn');
-            const phoneStatus = document.getElementById('phoneStatus');
-
-            savePhoneBtn.addEventListener('click', function() {
-                const phoneNumber = phoneInput.value.trim();
-                
-                if (!phoneNumber) {
-                    showNotification('Please enter a phone number', 'error');
-                    return;
-                }
-
-                // Basic phone number validation
-                if (!phoneNumber.startsWith('+')) {
-                    showNotification('Phone number must start with country code (e.g., +1234567890)', 'warning');
-                    return;
-                }
-
-                if (phoneNumber.length < 10) {
-                    showNotification('Please enter a valid phone number', 'warning');
-                    return;
-                }
-
-                // Send phone number to server via Socket.io
-                if (window.savageScanner && window.savageScanner.socket) {
-                    window.savageScanner.socket.emit('set_phone_number', { phoneNumber: phoneNumber });
-                    phoneStatus.textContent = `Owner number set: ${phoneNumber}`;
-                    phoneStatus.className = 'status-connected';
-                    
-                    // Show generate pairing button
-                    generatePairingBtn.style.display = 'inline-block';
-                    
-                    showNotification(`Owner number saved: ${phoneNumber}`, 'success');
-                    
-                    // Update owner number display
-                    document.getElementById('ownerNumberDisplay').textContent = phoneNumber;
-                    document.getElementById('ownerNumberDisplay').className = 'session-value status-connected';
-                    
-                } else {
-                    showNotification('Scanner not connected. Please wait...', 'error');
-                }
-            });
-
-            // Allow Enter key to save
-            phoneInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    savePhoneBtn.click();
-                }
-            });
+        function updateUIForAutomaticMode() {
+            // Update status messages for automatic mode
+            document.getElementById('statusMessage').textContent = 'Automatic QR generation active';
+            document.getElementById('qrStatus').textContent = 'QR codes generate automatically when needed';
+            document.getElementById('pairingStatus').textContent = 'Pairing codes generate with QR';
+            document.getElementById('platformDisplay').textContent = 'Render Deployment - Automatic Mode';
+            
+            // Show automatic mode indicator
+            const connectionState = document.getElementById('connectionState');
+            connectionState.textContent = 'Waiting for QR Generation';
+            connectionState.className = 'session-value status-waiting';
         }
 
-        function initializePairingCodeGeneration() {
-            const generatePairingBtn = document.getElementById('generatePairingBtn');
-            const generateManualPairingBtn = document.getElementById('generateManualPairingBtn');
-            const phoneInput = document.getElementById('phoneNumber');
+        function initializeAutomaticQR() {
+            const refreshQRBtn = document.getElementById('refreshQRBtn');
+            const copyPairingBtn = document.getElementById('copyPairingBtn');
+            const downloadQRBtn = document.getElementById('downloadQRBtn');
 
-            generatePairingBtn.addEventListener('click', function() {
-                const phoneNumber = phoneInput.value.trim();
-                
-                if (!phoneNumber) {
-                    showNotification('Please enter a phone number first', 'error');
-                    return;
-                }
-
+            // Refresh QR button
+            refreshQRBtn.addEventListener('click', function() {
                 if (window.savageScanner && window.savageScanner.socket) {
                     // Show loading state
-                    generatePairingBtn.textContent = '⏳ Generating...';
-                    generatePairingBtn.disabled = true;
+                    refreshQRBtn.textContent = '⏳ Refreshing...';
+                    refreshQRBtn.disabled = true;
 
-                    window.savageScanner.socket.emit('generate_pairing_code', { phoneNumber: phoneNumber });
+                    window.savageScanner.socket.emit('refresh_qr');
+                    showNotification('Refreshing QR code...', 'info');
                     
                     // Reset button after 3 seconds
                     setTimeout(() => {
-                        generatePairingBtn.textContent = '🔢 Generate Pairing Code';
-                        generatePairingBtn.disabled = false;
+                        refreshQRBtn.textContent = '🔄 Refresh QR';
+                        refreshQRBtn.disabled = false;
                     }, 3000);
                 } else {
                     showNotification('Scanner not connected', 'error');
                 }
             });
 
-            generateManualPairingBtn.addEventListener('click', function() {
-                const phoneNumber = phoneInput.value.trim();
-                
-                if (!phoneNumber) {
-                    showNotification('Please enter a phone number first', 'error');
-                    return;
+            // Copy pairing code button
+            copyPairingBtn.addEventListener('click', function() {
+                const pairingCode = document.getElementById('pairingCode').textContent;
+                if (pairingCode && pairingCode !== '------') {
+                    navigator.clipboard.writeText(pairingCode).then(function() {
+                        showNotification('Pairing code copied to clipboard!', 'success');
+                    }).catch(function() {
+                        showNotification('Failed to copy pairing code', 'error');
+                    });
+                } else {
+                    showNotification('No pairing code available yet', 'warning');
                 }
+            });
 
-                if (window.savageScanner && window.savageScanner.socket) {
-                    window.savageScanner.socket.emit('generate_pairing_code', { phoneNumber: phoneNumber });
-                    showNotification('Generating new pairing code...', 'info');
+            // Download QR button (will be shown when QR is available)
+            downloadQRBtn.addEventListener('click', function() {
+                const qrImage = document.querySelector('#qrCode img');
+                if (qrImage && qrImage.src) {
+                    const link = document.createElement('a');
+                    link.download = 'savage-scanner-qr.png';
+                    link.href = qrImage.src;
+                    link.click();
+                    showNotification('QR code downloaded!', 'success');
+                } else {
+                    showNotification('No QR code available to download', 'warning');
                 }
             });
         }
@@ -859,21 +835,21 @@
                           `Ctrl+Shift+L - Logout\n` +
                           `Ctrl+Shift+R - Refresh QR\n` +
                           `Ctrl+Shift+C - Copy Session ID\n` +
-                          `Ctrl+Shift+P - Focus Phone Input\n` +
-                          `Ctrl+Shift+G - Generate Pairing Code\n` +
+                          `Ctrl+Shift+Q - Copy Pairing Code\n` +
+                          `Ctrl+Shift+D - Download QR\n` +
                           `Ctrl+Shift+H - Show this help`);
                 }
 
-                // Ctrl+Shift+P to focus phone input
-                if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+                // Ctrl+Shift+R to refresh QR
+                if (e.ctrlKey && e.shiftKey && e.key === 'R') {
                     e.preventDefault();
-                    document.getElementById('phoneNumber').focus();
+                    document.getElementById('refreshQRBtn').click();
                 }
 
-                // Ctrl+Shift+G to generate pairing code
-                if (e.ctrlKey && e.shiftKey && e.key === 'G') {
+                // Ctrl+Shift+Q to copy pairing code
+                if (e.ctrlKey && e.shiftKey && e.key === 'Q') {
                     e.preventDefault();
-                    document.getElementById('generatePairingBtn').click();
+                    document.getElementById('copyPairingBtn').click();
                 }
             });
         }
@@ -909,7 +885,7 @@
             return icons[type] || 'ℹ️';
         }
 
-        // Global functions for buttons
+        // Global functions for scanner.js integration
         function copySessionId() {
             if (window.savageScanner) {
                 window.savageScanner.copySessionId();
