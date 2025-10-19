@@ -2,6 +2,7 @@
  * 🦅 SAVAGE BOTS SCANNER - Frontend Scanner Logic
  * Real-time WhatsApp QR code, pairing codes, and bot status management
  * Hacker-themed interface with WebSocket connections
+ * UPDATED: Automatic QR Generation (No Phone Number Required)
  */
 
 class SavageScanner {
@@ -14,13 +15,13 @@ class SavageScanner {
         this.maxReconnectAttempts = 5;
         this.reconnectDelay = 3000;
         
-        // Scanner state
+        // Scanner state - UPDATED for automatic mode
         this.scannerState = {
             qrCode: null,
             pairingCode: null,
             status: 'disconnected',
             phoneNumber: null,
-            ownerPhoneNumber: null,
+            connectionType: 'automatic', // automatic or manual
             bots: {
                 'SAVAGE-X': { status: 'offline', lastSeen: null },
                 'DE-UKNOWN-BOT': { status: 'offline', lastSeen: null },
@@ -35,7 +36,7 @@ class SavageScanner {
      * 🎯 Initialize scanner
      */
     init() {
-        console.log('🦅 Initializing SAVAGE BOTS SCANNER...');
+        console.log('🦅 Initializing SAVAGE BOTS SCANNER - Automatic QR Mode...');
         
         this.checkAuthentication();
         this.initializeSocketIO();
@@ -47,6 +48,11 @@ class SavageScanner {
             window.savageMatrix.setColorScheme('matrix');
             window.savageMatrix.setIntensity(0.8);
         }
+
+        // Show automatic mode notification
+        setTimeout(() => {
+            this.showNotification('🦅 SAVAGE SCANNER READY - QR codes generate automatically', 'success');
+        }, 1000);
     }
 
     /**
@@ -72,7 +78,8 @@ class SavageScanner {
             this.socket = io({
                 timeout: 10000,
                 reconnectionAttempts: 5,
-                reconnectionDelay: 3000
+                reconnectionDelay: 3000,
+                transports: ['websocket', 'polling'] // ✅ Better for Render
             });
             
             this.setupSocketEvents();
@@ -84,7 +91,7 @@ class SavageScanner {
     }
 
     /**
-     * 🔌 Setup Socket.IO event handlers - UPDATED
+     * 🔌 Setup Socket.IO event handlers - UPDATED for automatic mode
      */
     setupSocketEvents() {
         // Connection events
@@ -92,7 +99,7 @@ class SavageScanner {
         this.socket.on('disconnect', () => this.handleSocketDisconnect());
         this.socket.on('connect_error', (error) => this.handleSocketError(error));
         
-        // Scanner events
+        // Scanner events - UPDATED for automatic QR
         this.socket.on('scanner_status', (data) => this.handleScannerStatus(data));
         this.socket.on('qr_data', (data) => this.handleQRData(data));
         this.socket.on('ready', (data) => this.handleReady(data));
@@ -100,27 +107,26 @@ class SavageScanner {
         this.socket.on('bot_status', (data) => this.handleBotStatus(data));
         this.socket.on('connection_update', (data) => this.handleConnectionUpdate(data));
         this.socket.on('auth_result', (data) => this.handleAuthResult(data));
-        this.socket.on('phone_number_updated', (data) => this.handlePhoneNumberUpdate(data));
-        this.socket.on('pairing_generated', (data) => this.handlePairingGenerated(data));
         this.socket.on('logout', (data) => this.handleLogoutEvent(data));
         this.socket.on('logout_success', (data) => this.handleLogoutSuccess(data));
+        this.socket.on('qr_refreshed', (data) => this.handleQRRefreshed(data));
         
         // Error events
         this.socket.on('error', (data) => this.handleError(data));
     }
 
     /**
-     * 🔌 Handle Socket.IO connection
+     * 🔌 Handle Socket.IO connection - UPDATED for automatic mode
      */
     handleSocketConnect() {
         console.log('✅ Socket.IO connected to SAVAGE SCANNER');
         this.isConnected = true;
         this.reconnectAttempts = 0;
         
-        this.updateStatus('connected', 'Connected to scanner server');
-        this.showNotification('Connected to scanner server', 'success');
+        this.updateStatus('connected', 'Connected to scanner server - Automatic QR mode active');
+        this.showNotification('Connected to scanner server - QR codes generate automatically', 'success');
         
-        // Request current status
+        // Request current status - QR will generate automatically
         this.socket.emit('get_status');
     }
 
@@ -144,7 +150,7 @@ class SavageScanner {
     }
 
     /**
-     * 📨 Handle scanner status
+     * 📨 Handle scanner status - UPDATED for automatic mode
      */
     handleScannerStatus(data) {
         console.log('📊 Scanner status:', data);
@@ -154,35 +160,28 @@ class SavageScanner {
             this.updateSessionInfo(data);
         }
         
-        // Update owner phone number if available
-        if (data.ownerPhoneNumber) {
-            this.scannerState.ownerPhoneNumber = data.ownerPhoneNumber;
-            this.updateOwnerNumberDisplay(data.ownerPhoneNumber);
-        }
+        // Update UI for automatic mode
+        this.updateUIForAutomaticMode();
         
+        // If we have QR data, request it
         if (data.hasQr) {
-            this.socket.emit('get_qr');
+            this.showNotification('QR code available - loading...', 'info');
         }
     }
 
     /**
-     * 📱 Handle QR code data - UPDATED WITH OWNER NUMBER
+     * 📱 Handle QR code data - UPDATED for automatic generation
      */
     handleQRData(data) {
-        console.log('📱 QR Data received:', data);
+        console.log('📱 QR Data received (Automatic):', data);
         
         this.scannerState.qrCode = data.qrImage;
         this.scannerState.pairingCode = data.pairingCode;
         
-        // Update phone numbers if provided
+        // Update phone number if automatically detected
         if (data.phoneNumber) {
             this.scannerState.phoneNumber = data.phoneNumber;
             this.updatePhoneNumberDisplay(data.phoneNumber);
-        }
-        
-        if (data.ownerPhoneNumber) {
-            this.scannerState.ownerPhoneNumber = data.ownerPhoneNumber;
-            this.updateOwnerNumberDisplay(data.ownerPhoneNumber);
         }
         
         this.updateQRCode(data.qrImage, data.qrRaw);
@@ -191,13 +190,24 @@ class SavageScanner {
         // Show appropriate status based on auto-generation
         if (data.autoGenerated) {
             this.updateStatus('qr_ready', 'QR code automatically generated - Ready for scanning');
-        } else if (data.manualRequest) {
-            this.updateStatus('pairing_ready', 'Pairing code generated for your number');
+            this.showNotification('✅ QR code automatically generated! Scan with WhatsApp', 'success');
         } else {
-            this.updateStatus('waiting_qr', 'Scan QR code or use pairing code');
+            this.updateStatus('qr_ready', 'QR code ready - Scan with WhatsApp');
         }
         
-        console.log('📱 QR Code received:', data.pairingCode);
+        console.log('📱 QR Code automatically generated:', data.pairingCode);
+    }
+
+    /**
+     * 🔄 Handle QR refresh response
+     */
+    handleQRRefreshed(data) {
+        if (data.success) {
+            this.showNotification('🔄 QR code refresh initiated', 'info');
+            this.updateStatus('waiting_qr', 'Generating new QR code...');
+        } else {
+            this.showNotification('❌ Failed to refresh QR code', 'error');
+        }
     }
 
     /**
@@ -222,31 +232,29 @@ class SavageScanner {
     }
 
     /**
-     * 🚀 Handle scanner ready state - UPDATED WITH SYNCING
+     * 🚀 Handle scanner ready state - UPDATED for automatic mode
      */
     handleReady(data) {
         this.sessionId = data.sessionId;
         this.scannerState.phoneNumber = data.phoneNumber;
-        this.scannerState.ownerPhoneNumber = data.ownerPhoneNumber;
         this.scannerState.status = 'connected';
         
         this.updateStatus('connected', 'WhatsApp connected and synced!');
         this.updateSessionInfo(data);
         this.updatePhoneNumberDisplay(data.phoneNumber);
-        this.updateOwnerNumberDisplay(data.ownerPhoneNumber);
         
-        this.showNotification('✅ WhatsApp connected successfully! Session ID sent to owner.', 'success');
+        this.showNotification('✅ WhatsApp connected successfully! Session active.', 'success');
         
         // Update bot statuses
         this.updateBotStatus('SAVAGE-X', 'online');
         this.updateBotStatus('DE-UKNOWN-BOT', 'online');
         this.updateBotStatus('QUEEN-RIXIE', 'online');
         
-        console.log('🚀 Scanner ready:', data.sessionId);
+        console.log('🚀 Scanner ready (Automatic):', data.sessionId);
     }
 
     /**
-     * 📊 Handle status updates - UPDATED WITH SYNCING
+     * 📊 Handle status updates - UPDATED for automatic mode
      */
     handleStatusUpdate(data) {
         this.updateStatus(data.status, data.message);
@@ -258,28 +266,10 @@ class SavageScanner {
         
         if (data.status === 'syncing') {
             this.showNotification('🔄 Syncing with WhatsApp...', 'warning');
-        } else if (data.status === 'pairing_ready') {
-            this.showNotification('🔢 Pairing code generated successfully!', 'success');
-        }
-    }
-
-    /**
-     * 📱 Handle phone number updates
-     */
-    handlePhoneNumberUpdate(data) {
-        if (data.phoneNumber) {
-            this.scannerState.phoneNumber = data.phoneNumber;
-            this.updatePhoneNumberDisplay(data.phoneNumber);
-            this.showNotification(`Phone number updated: ${data.phoneNumber}`, 'success');
-        }
-        
-        if (data.ownerPhoneNumber) {
-            this.scannerState.ownerPhoneNumber = data.ownerPhoneNumber;
-            this.updateOwnerNumberDisplay(data.ownerPhoneNumber);
-        }
-        
-        if (data.pairingCode) {
-            this.updatePairingCode(data.pairingCode);
+        } else if (data.status === 'waiting_qr') {
+            this.showNotification('⏳ Generating QR code automatically...', 'info');
+        } else if (data.status === 'qr_ready') {
+            this.showNotification('✅ QR code ready for scanning', 'success');
         }
     }
 
@@ -298,25 +288,6 @@ class SavageScanner {
     handleBotStatus(data) {
         if (data.botName && data.status) {
             this.updateBotStatus(data.botName, data.status, data.lastSeen);
-        }
-    }
-
-    /**
-     * 🆕 Handle pairing code generation result
-     */
-    handlePairingGenerated(data) {
-        if (data.success) {
-            this.scannerState.pairingCode = data.pairingCode;
-            this.updatePairingCode(data.pairingCode);
-            this.showNotification(`✅ ${data.message}`, 'success');
-            
-            // Show manual pairing button
-            const manualPairingBtn = document.getElementById('generateManualPairingBtn');
-            if (manualPairingBtn) {
-                manualPairingBtn.style.display = 'inline-block';
-            }
-        } else {
-            this.showNotification(`❌ ${data.error}`, 'error');
         }
     }
 
@@ -342,16 +313,16 @@ class SavageScanner {
     }
 
     /**
-     * 🆕 Handle client-side logout cleanup
+     * 🆕 Handle client-side logout cleanup - UPDATED for automatic mode
      */
     handleClientLogout() {
         // Clear local state
         this.isAuthenticated = false;
         this.sessionId = null;
         this.scannerState.phoneNumber = null;
-        this.scannerState.ownerPhoneNumber = null;
         this.scannerState.qrCode = null;
         this.scannerState.pairingCode = null;
+        this.scannerState.status = 'disconnected';
         
         // Clear localStorage
         localStorage.removeItem('savage_session_token');
@@ -360,7 +331,6 @@ class SavageScanner {
         // Reset UI
         this.updateStatus('disconnected', 'Logged out');
         this.updatePhoneNumberDisplay(null);
-        this.updateOwnerNumberDisplay(null);
         this.updatePairingCode(null);
         this.updateQRCode(null, null);
         
@@ -369,13 +339,12 @@ class SavageScanner {
         this.updateBotStatus('DE-UKNOWN-BOT', 'offline');
         this.updateBotStatus('QUEEN-RIXIE', 'offline');
         
-        // Hide manual pairing button
-        const manualPairingBtn = document.getElementById('generateManualPairingBtn');
-        if (manualPairingBtn) {
-            manualPairingBtn.style.display = 'none';
-        }
+        // Show automatic mode message
+        setTimeout(() => {
+            this.showNotification('🔄 QR code will generate automatically when reconnected', 'info');
+        }, 1000);
         
-        console.log('✅ Client logout completed');
+        console.log('✅ Client logout completed - Automatic mode ready');
     }
 
     /**
@@ -391,7 +360,7 @@ class SavageScanner {
     }
 
     /**
-     * 🎨 Update QR code display - IMPROVED WITH FALLBACK
+     * 🎨 Update QR code display - IMPROVED FOR AUTOMATIC MODE
      */
     updateQRCode(qrImage, qrRaw = null) {
         const qrElement = document.getElementById('qrCode');
@@ -402,6 +371,13 @@ class SavageScanner {
             qrElement.innerHTML = `
                 <img src="${qrImage}" alt="WhatsApp QR Code" style="max-width: 100%; height: auto; border: 2px solid var(--matrix-green); border-radius: 8px;">
             `;
+            
+            // Show download button
+            const downloadBtn = document.getElementById('downloadQRBtn');
+            if (downloadBtn) {
+                downloadBtn.style.display = 'inline-block';
+                downloadBtn.onclick = () => this.downloadQRCode(qrImage);
+            }
         } else if (qrRaw) {
             // Fallback: display manual pairing instructions
             qrElement.innerHTML = `
@@ -413,9 +389,10 @@ class SavageScanner {
                 </div>
             `;
         } else {
+            // Show loading state for automatic generation
             qrElement.innerHTML = `
                 <div class="loading-spinner"></div>
-                <p class="loading-text">Waiting for phone number setup...</p>
+                <p class="loading-text">Generating QR code automatically...</p>
             `;
         }
         
@@ -424,22 +401,13 @@ class SavageScanner {
         if (qrStatus) {
             if (qrImage) {
                 qrStatus.textContent = 'QR Code Ready - Scan with WhatsApp';
-                qrStatus.className = 'status-syncing';
+                qrStatus.className = 'status-connected';
             } else if (qrRaw) {
                 qrStatus.textContent = 'Manual Pairing Code Ready';
                 qrStatus.className = 'status-waiting';
             } else {
-                qrStatus.textContent = 'Setup phone number first';
-                qrStatus.className = 'status-waiting';
-            }
-        }
-
-        // Show download button if QR image is available
-        const downloadBtn = document.getElementById('downloadQRBtn');
-        if (downloadBtn) {
-            downloadBtn.style.display = qrImage ? 'inline-block' : 'none';
-            if (qrImage) {
-                downloadBtn.onclick = () => this.downloadQRCode(qrImage);
+                qrStatus.textContent = 'QR code generating automatically...';
+                qrStatus.className = 'status-syncing';
             }
         }
     }
@@ -456,7 +424,7 @@ class SavageScanner {
     }
 
     /**
-     * 🔢 Update pairing code display
+     * 🔢 Update pairing code display - UPDATED for automatic mode
      */
     updatePairingCode(pairingCode) {
         const pairingElement = document.getElementById('pairingCode');
@@ -467,10 +435,10 @@ class SavageScanner {
         const pairingStatus = document.getElementById('pairingStatus');
         if (pairingStatus) {
             if (pairingCode) {
-                pairingStatus.textContent = 'Pairing Code Ready';
-                pairingStatus.className = 'status-syncing';
+                pairingStatus.textContent = 'Pairing Code Ready - Use with WhatsApp';
+                pairingStatus.className = 'status-connected';
             } else {
-                pairingStatus.textContent = 'Generate pairing code for your number';
+                pairingStatus.textContent = 'Pairing code generates automatically with QR';
                 pairingStatus.className = 'status-waiting';
             }
         }
@@ -483,7 +451,7 @@ class SavageScanner {
     }
 
     /**
-     * 📱 Update phone number display
+     * 📱 Update phone number display - UPDATED for automatic detection
      */
     updatePhoneNumberDisplay(phoneNumber) {
         const phoneDisplay = document.getElementById('phoneNumberDisplay');
@@ -495,36 +463,7 @@ class SavageScanner {
     }
 
     /**
-     * 🆕 Update owner number display
-     */
-    updateOwnerNumberDisplay(ownerNumber) {
-        const ownerDisplay = document.getElementById('ownerNumberDisplay');
-        const phoneStatus = document.getElementById('phoneStatus');
-        
-        if (ownerDisplay) {
-            ownerDisplay.textContent = ownerNumber || 'Not set';
-            ownerDisplay.className = ownerNumber ? 'session-value status-connected' : 'session-value status-disconnected';
-        }
-        
-        if (phoneStatus) {
-            if (ownerNumber) {
-                phoneStatus.textContent = `Owner number: ${ownerNumber}`;
-                phoneStatus.className = 'status-connected';
-                
-                // Show generate pairing button
-                const generatePairingBtn = document.getElementById('generatePairingBtn');
-                if (generatePairingBtn) {
-                    generatePairingBtn.style.display = 'inline-block';
-                }
-            } else {
-                phoneStatus.textContent = 'Enter phone number to begin';
-                phoneStatus.className = 'status-waiting';
-            }
-        }
-    }
-
-    /**
-     * 📊 Update connection status
+     * 📊 Update connection status - UPDATED for automatic mode
      */
     updateStatus(status, message) {
         this.scannerState.status = status;
@@ -552,13 +491,13 @@ class SavageScanner {
     }
 
     /**
-     * 🎨 Format status for display
+     * 🎨 Format status for display - UPDATED for automatic mode
      */
     formatStatus(status) {
         const statusMap = {
             'connected': 'CONNECTED',
             'disconnected': 'DISCONNECTED',
-            'waiting_qr': 'WAITING FOR SCAN',
+            'waiting_qr': 'GENERATING QR',
             'syncing': 'SYNCING...',
             'reconnecting': 'RECONNECTING...',
             'error': 'ERROR',
@@ -648,6 +587,23 @@ class SavageScanner {
     }
 
     /**
+     * 🎨 Update UI for automatic mode - NEW METHOD
+     */
+    updateUIForAutomaticMode() {
+        // Update connection type display
+        const connectionType = document.querySelector('.connection-value.status-connected');
+        if (connectionType) {
+            connectionType.textContent = 'AUTOMATIC QR';
+        }
+        
+        // Update platform info for Render
+        const platformDisplay = document.getElementById('platformDisplay');
+        if (platformDisplay) {
+            platformDisplay.textContent = 'Render Deployment - Automatic Mode';
+        }
+    }
+
+    /**
      * 🎭 Show password interface
      */
     showPasswordInterface() {
@@ -660,7 +616,10 @@ class SavageScanner {
      */
     showScannerInterface() {
         // We're already on the scanner page, just ensure everything is visible
-        console.log('🦅 Scanner interface active');
+        console.log('🦅 Scanner interface active - Automatic QR Mode');
+        
+        // Update UI for automatic mode
+        this.updateUIForAutomaticMode();
         
         // Request initial data
         if (this.socket && this.isConnected) {
@@ -713,7 +672,7 @@ class SavageScanner {
     }
 
     /**
-     * 🎛️ Setup event listeners - UPDATED
+     * 🎛️ Setup event listeners - UPDATED for automatic mode
      */
     setupEventListeners() {
         // Logout button
@@ -745,126 +704,22 @@ class SavageScanner {
             });
         }
 
-        // Generate manual pairing button
-        const generateManualPairingBtn = document.getElementById('generateManualPairingBtn');
-        if (generateManualPairingBtn) {
-            generateManualPairingBtn.addEventListener('click', () => this.generateManualPairingCode());
+        // Download QR button
+        const downloadQRBtn = document.getElementById('downloadQRBtn');
+        if (downloadQRBtn) {
+            downloadQRBtn.addEventListener('click', () => {
+                if (this.scannerState.qrCode) {
+                    this.downloadQRCode(this.scannerState.qrCode);
+                }
+            });
         }
 
-        // Phone number handling
-        this.setupPhoneNumberHandling();
-        
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
     }
 
     /**
-     * 📱 Setup phone number handling
-     */
-    setupPhoneNumberHandling() {
-        const savePhoneBtn = document.getElementById('savePhoneBtn');
-        const phoneInput = document.getElementById('phoneNumber');
-
-        if (savePhoneBtn && phoneInput) {
-            savePhoneBtn.addEventListener('click', () => this.savePhoneNumber());
-            
-            phoneInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    this.savePhoneNumber();
-                }
-            });
-        }
-    }
-
-    /**
-     * 💾 Save phone number
-     */
-    savePhoneNumber() {
-        const phoneInput = document.getElementById('phoneNumber');
-        const phoneNumber = phoneInput.value.trim();
-        
-        if (!phoneNumber) {
-            this.showNotification('Please enter a phone number', 'error');
-            return;
-        }
-
-        // Basic phone number validation
-        if (!phoneNumber.startsWith('+')) {
-            this.showNotification('Phone number must start with country code (e.g., +1234567890)', 'warning');
-            return;
-        }
-
-        if (phoneNumber.length < 10) {
-            this.showNotification('Please enter a valid phone number', 'warning');
-            return;
-        }
-
-        // Send phone number to server
-        if (this.socket && this.isConnected) {
-            this.socket.emit('set_phone_number', { phoneNumber: phoneNumber });
-            this.showNotification(`Owner number saved: ${phoneNumber}`, 'success');
-            
-            // Update local state
-            this.scannerState.ownerPhoneNumber = phoneNumber;
-            this.updateOwnerNumberDisplay(phoneNumber);
-        } else {
-            this.showNotification('Scanner not connected. Please wait...', 'error');
-        }
-    }
-
-    /**
-     * 🔢 Generate manual pairing code
-     */
-    generateManualPairingCode() {
-        const phoneInput = document.getElementById('phoneNumber');
-        const phoneNumber = phoneInput.value.trim();
-        
-        if (!phoneNumber) {
-            this.showNotification('Please enter a phone number first', 'error');
-            return;
-        }
-
-        if (this.socket && this.isConnected) {
-            this.socket.emit('generate_pairing_code', { phoneNumber: phoneNumber });
-            this.showNotification('Generating pairing code...', 'info');
-        } else {
-            this.showNotification('Scanner not connected', 'error');
-        }
-    }
-
-    /**
-     * 🔑 Handle password form submission
-     */
-    handlePasswordSubmit(e) {
-        e.preventDefault();
-        
-        const passwordInput = document.getElementById('passwordInput');
-        const password = passwordInput.value.trim();
-        
-        if (!password) {
-            this.showNotification('Please enter a password', 'error');
-            return;
-        }
-        
-        // Show loading state
-        const submitBtn = e.target.querySelector('button[type="submit"]');
-        const originalText = submitBtn.textContent;
-        submitBtn.textContent = 'AUTHENTICATING...';
-        submitBtn.disabled = true;
-        
-        // Send authentication request
-        this.socket.emit('authenticate', { password });
-        
-        // Reset button after delay
-        setTimeout(() => {
-            submitBtn.textContent = originalText;
-            submitBtn.disabled = false;
-            passwordInput.value = '';
-        }, 2000);
-    }
-
-    /**
-     * 🚪 Handle logout - UPDATED
+     * 🚪 Handle logout - UPDATED for automatic mode
      */
     handleLogout() {
         if (this.socket && this.isConnected) {
@@ -876,12 +731,13 @@ class SavageScanner {
     }
 
     /**
-     * 🔄 Refresh QR code
+     * 🔄 Refresh QR code - UPDATED for automatic mode
      */
     refreshQR() {
         if (this.socket) {
             this.socket.emit('refresh_qr');
-            this.showNotification('Generating new QR code...', 'warning');
+            this.showNotification('🔄 Generating new QR code...', 'warning');
+            this.updateStatus('waiting_qr', 'Refreshing QR code...');
         }
     }
 
@@ -922,7 +778,7 @@ class SavageScanner {
     }
 
     /**
-     * ⌨️ Handle keyboard shortcuts - UPDATED
+     * ⌨️ Handle keyboard shortcuts - UPDATED for automatic mode
      */
     handleKeyboardShortcuts(e) {
         // Ctrl+Shift+L - Logout
@@ -943,19 +799,21 @@ class SavageScanner {
             this.copySessionId();
         }
 
-        // Ctrl+Shift+P - Focus phone input
-        if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+        // Ctrl+Shift+Q - Copy pairing code
+        if (e.ctrlKey && e.shiftKey && e.key === 'Q') {
             e.preventDefault();
-            const phoneInput = document.getElementById('phoneNumber');
-            if (phoneInput) {
-                phoneInput.focus();
+            const pairingCode = document.getElementById('pairingCode').textContent;
+            if (pairingCode && pairingCode !== '------') {
+                this.copyPairingCode(pairingCode);
             }
         }
 
-        // Ctrl+Shift+G - Generate pairing code
-        if (e.ctrlKey && e.shiftKey && e.key === 'G') {
+        // Ctrl+Shift+D - Download QR
+        if (e.ctrlKey && e.shiftKey && e.key === 'D') {
             e.preventDefault();
-            this.generateManualPairingCode();
+            if (this.scannerState.qrCode) {
+                this.downloadQRCode(this.scannerState.qrCode);
+            }
         }
     }
 
@@ -1027,17 +885,19 @@ class SavageScanner {
     }
 
     /**
-     * 🏥 Get scanner health status
+     * 🏥 Get scanner health status - UPDATED for automatic mode
      */
     getHealthStatus() {
         return {
             websocket: this.isConnected ? 'connected' : 'disconnected',
             authenticated: this.isAuthenticated,
             scanner: this.scannerState.status,
+            connectionType: this.scannerState.connectionType,
             bots: this.scannerState.bots,
             sessionId: this.sessionId,
             phoneNumber: this.scannerState.phoneNumber,
-            ownerPhoneNumber: this.scannerState.ownerPhoneNumber,
+            hasQR: !!this.scannerState.qrCode,
+            hasPairingCode: !!this.scannerState.pairingCode,
             reconnectAttempts: this.reconnectAttempts
         };
     }
