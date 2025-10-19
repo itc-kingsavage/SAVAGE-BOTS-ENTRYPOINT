@@ -36,7 +36,8 @@ class SavageBotsScanner {
         this.connectedBots = new Set();
         this.whatsappAvailable = false;
         this.currentPhoneNumber = null;
-        this.ownerPhoneNumber = null; // ✅ ADDED: Store owner's number separately
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
         
         this.initializeScanner();
     }
@@ -135,14 +136,15 @@ class SavageBotsScanner {
             res.sendFile(path.join(__dirname, 'public', 'scanner.html'));
         });
 
-        // Logout endpoint - ✅ ADDED: Proper logout
+        // Logout endpoint
         this.app.post('/logout', (req, res) => {
             try {
                 // Clear server-side authentication
                 this.isAuthenticated = false;
                 this.sessionId = null;
                 this.currentPhoneNumber = null;
-                this.ownerPhoneNumber = null;
+                this.currentQR = null;
+                this.currentPairingCode = null;
                 
                 // Clear WhatsApp connection
                 if (this.client) {
@@ -150,8 +152,16 @@ class SavageBotsScanner {
                     this.client = null;
                 }
                 
+                // Reset reconnect attempts
+                this.reconnectAttempts = 0;
+                
                 // Notify all clients
                 this.io.emit('logout', { message: 'Logged out successfully' });
+                
+                // Restart WhatsApp connection for new QR
+                setTimeout(() => {
+                    this.initializeWhatsApp().catch(console.error);
+                }, 2000);
                 
                 res.json({ success: true, message: 'Logged out successfully' });
             } catch (error) {
@@ -183,6 +193,7 @@ class SavageBotsScanner {
                 version: SCANNER_IDENTITY.VERSION,
                 platform: DEPLOYMENT.getCurrentPlatform().NAME,
                 whatsapp: this.whatsappAvailable,
+                authenticated: this.isAuthenticated,
                 timestamp: new Date()
             });
         });
@@ -196,9 +207,34 @@ class SavageBotsScanner {
                 sessionId: this.sessionId,
                 connectedBots: Array.from(this.connectedBots),
                 currentPhoneNumber: this.currentPhoneNumber,
-                ownerPhoneNumber: this.ownerPhoneNumber, // ✅ ADDED
+                hasQr: !!this.currentQR,
                 timestamp: new Date()
             });
+        });
+
+        // Force QR regeneration
+        this.app.post('/refresh-qr', (req, res) => {
+            try {
+                if (this.client) {
+                    this.client.logout();
+                    this.client = null;
+                }
+                
+                this.isAuthenticated = false;
+                this.sessionId = null;
+                this.currentQR = null;
+                this.currentPairingCode = null;
+                this.reconnectAttempts = 0;
+                
+                // Restart WhatsApp connection
+                setTimeout(() => {
+                    this.initializeWhatsApp().catch(console.error);
+                }, 1000);
+                
+                res.json({ success: true, message: 'QR code refresh initiated' });
+            } catch (error) {
+                res.json({ success: false, error: 'Failed to refresh QR' });
+            }
         });
     }
 
@@ -208,6 +244,12 @@ class SavageBotsScanner {
     async initializeWhatsApp() {
         try {
             console.log('📱 [SCANNER] Initializing WhatsApp connection...');
+            
+            // Reset connection state
+            this.isAuthenticated = false;
+            this.sessionId = null;
+            this.currentPhoneNumber = null;
+            this.whatsappAvailable = false;
             
             // ✅ COMPATIBLE Baileys v6+ import with proper logger
             const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
@@ -239,7 +281,10 @@ class SavageBotsScanner {
                 // Additional settings
                 retryRequestDelayMs: 3000,
                 maxRetries: 5,
-                connectTimeoutMs: 30000
+                connectTimeoutMs: 30000,
+                generateHighQualityLink: true, // ✅ ADDED: Better QR quality
+                fireInitQueries: true,
+                shouldIgnoreJid: (jid) => false
             });
 
             // Save auth state updates
@@ -250,9 +295,21 @@ class SavageBotsScanner {
             this.whatsappAvailable = true;
             console.log('✅ [SCANNER] WhatsApp client initialized successfully');
             
+            // Notify frontend that we're ready for QR
+            this.io.emit('status_update', {
+                status: 'waiting_qr',
+                message: 'Waiting for QR code generation...'
+            });
+            
         } catch (error) {
             console.error('❌ [SCANNER] WhatsApp initialization failed:', error.message);
             this.whatsappAvailable = false;
+            
+            this.io.emit('status_update', {
+                status: 'whatsapp_failed',
+                message: 'WhatsApp connection failed: ' + error.message
+            });
+            
             throw error;
         }
     }
@@ -265,14 +322,15 @@ class SavageBotsScanner {
 
         // Connection updates
         this.client.ev.on('connection.update', (update) => {
-            const { connection, lastDisconnect, qr } = update;
+            const { connection, lastDisconnect, qr, isNewLogin, isOnline } = update;
             
             console.log(`📡 [WHATSAPP] Connection update: ${connection}`);
             
-            // ✅ FIXED: Auto-generate QR code when available
+            // ✅ FIXED: Auto-generate QR code when available (like web.whatsapp.com)
             if (qr) {
                 console.log('📱 [SCANNER] QR Code received - Auto-generating...');
-                this.handleQRCode(qr);
+                this.reconnectAttempts = 0; // Reset on new QR
+                this.handleQRCode(qr).catch(console.error);
             }
             
             // Handle connection status
@@ -287,14 +345,25 @@ class SavageBotsScanner {
                     message: 'WhatsApp connection lost'
                 });
                 
-                if (shouldReconnect) {
+                if (shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.reconnectAttempts++;
+                    const delay = Math.min(5000 * this.reconnectAttempts, 30000); // Max 30s delay
+                    
+                    console.log(`🔄 [SCANNER] Reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
+                    
                     setTimeout(() => {
-                        console.log('🔄 [SCANNER] Attempting reconnect...');
                         this.initializeWhatsApp().catch(console.error);
-                    }, 5000);
+                    }, delay);
+                } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                    console.log('🛑 [SCANNER] Max reconnection attempts reached');
+                    this.io.emit('status_update', {
+                        status: 'connection_failed',
+                        message: 'WhatsApp connection failed after multiple attempts. Please refresh.'
+                    });
                 }
             } else if (connection === 'open') {
                 console.log('🔗 [SCANNER] WhatsApp connection opened');
+                this.reconnectAttempts = 0; // Reset on successful connection
                 this.isAuthenticated = true;
                 this.whatsappAvailable = true;
                 
@@ -361,7 +430,7 @@ class SavageBotsScanner {
         
         // Handle media messages
         if (msg.imageMessage) return '[Image Message]';
-        if (msg.videoMessage) return '[Video Video]';
+        if (msg.videoMessage) return '[Video Message]';
         if (msg.audioMessage) return '[Audio Message]';
         if (msg.documentMessage) return '[Document Message]';
         if (msg.stickerMessage) return '[Sticker Message]';
@@ -370,146 +439,97 @@ class SavageBotsScanner {
     }
 
     /**
-     * 🔢 Handle QR code generation - ✅ FIXED: Auto-generate QR codes
+     * 🔢 Handle QR code generation - ✅ FIXED: Auto-generate QR codes like web.whatsapp.com
      */
     async handleQRCode(qr) {
         try {
-            console.log('📱 [SCANNER] Generating QR code...');
+            console.log('📱 [SCANNER] Generating QR code automatically...');
             
-            // ✅ FIXED: Better QR generation with error handling
+            // Clear previous authentication state
+            this.isAuthenticated = false;
+            this.sessionId = null;
+            this.currentPhoneNumber = null;
+            
+            // ✅ FIXED: Better QR generation with high quality
             let qrImage = null;
             try {
-                qrImage = await qrcode.toDataURL(qr);
+                qrImage = await qrcode.toDataURL(qr, {
+                    width: 400,
+                    height: 400,
+                    margin: 2,
+                    color: {
+                        dark: '#00FF00', // Green hacker theme
+                        light: '#000000'
+                    }
+                });
             } catch (qrError) {
                 console.warn('⚠️ [SCANNER] QR image generation failed, using raw data:', qrError.message);
+                // Fallback to simple QR
+                qrImage = await qrcode.toDataURL(qr);
             }
             
             this.currentQR = qrImage;
             this.currentPairingCode = generatePairingCode();
             
-            // ✅ IMPROVED: Always send QR data even if image fails
+            // ✅ IMPROVED: Auto-generated QR data (like web.whatsapp.com)
             const qrData = {
                 qrImage: qrImage,
                 qrRaw: qr,
                 pairingCode: this.currentPairingCode,
-                phoneNumber: this.currentPhoneNumber,
-                ownerPhoneNumber: this.ownerPhoneNumber,
                 timestamp: Date.now(),
-                autoGenerated: true // ✅ ADDED: Indicate this was auto-generated
+                autoGenerated: true,
+                message: 'Scan this QR code with your phone to connect'
             };
             
             // Broadcast to all connected clients
             this.io.emit('qr_data', qrData);
             
-            console.log(`🔢 [SCANNER] QR Code generated - Pairing code: ${this.currentPairingCode}`);
+            console.log(`🔢 [SCANNER] QR Code automatically generated - Pairing code: ${this.currentPairingCode}`);
             
             // Update status
             this.io.emit('status_update', {
                 status: 'qr_ready',
                 message: 'QR code automatically generated - Ready for scanning',
-                phoneNumber: this.currentPhoneNumber
+                hasQr: true
             });
             
         } catch (error) {
             console.error('❌ [SCANNER] QR code handling failed:', error);
             
-            // ✅ FIXED: Emergency fallback
+            // ✅ FIXED: Emergency fallback - send raw QR data
             this.io.emit('qr_data', {
                 qrImage: null,
                 qrRaw: qr,
                 pairingCode: this.currentPairingCode,
-                phoneNumber: this.currentPhoneNumber,
-                error: 'QR generation failed - Use manual pairing',
+                error: 'QR generation failed - Use manual QR scanning',
                 timestamp: Date.now()
             });
         }
     }
 
     /**
-     * 🆕 GENERATE PAIRING CODE FOR SPECIFIC NUMBER
-     */
-    async generatePairingForNumber(phoneNumber) {
-        try {
-            console.log(`📱 [SCANNER] Generating pairing for: ${phoneNumber}`);
-            
-            // Store as owner's number
-            this.ownerPhoneNumber = phoneNumber;
-            this.currentPhoneNumber = phoneNumber;
-            
-            // Generate new pairing code
-            this.currentPairingCode = generatePairingCode();
-            
-            // If we have an active QR, update it
-            if (this.currentQR) {
-                this.io.emit('qr_data', {
-                    qrImage: this.currentQR,
-                    qrRaw: this.currentQR,
-                    pairingCode: this.currentPairingCode,
-                    phoneNumber: phoneNumber,
-                    ownerPhoneNumber: phoneNumber,
-                    timestamp: Date.now(),
-                    manualRequest: true // ✅ ADDED: Indicate manual generation
-                });
-            }
-            
-            // Broadcast updates
-            this.io.emit('phone_number_updated', { 
-                phoneNumber: phoneNumber,
-                ownerPhoneNumber: phoneNumber,
-                pairingCode: this.currentPairingCode,
-                timestamp: new Date().toISOString()
-            });
-            
-            this.io.emit('status_update', {
-                status: 'pairing_ready',
-                message: `Pairing code generated for ${phoneNumber}`,
-                phoneNumber: phoneNumber
-            });
-            
-            return {
-                success: true,
-                pairingCode: this.currentPairingCode,
-                phoneNumber: phoneNumber,
-                message: 'Pairing code ready for ' + phoneNumber
-            };
-            
-        } catch (error) {
-            console.error('❌ [SCANNER] Pairing generation failed:', error);
-            return {
-                success: false,
-                error: 'Failed to generate pairing code'
-            };
-        }
-    }
-
-    /**
-     * 🚀 Handle ready state - ✅ UPDATED: Send session to owner + syncing
+     * 🚀 Handle ready state - ✅ UPDATED: Automatic phone number detection
      */
     async handleReady() {
         try {
             console.log('🚀 [SCANNER] WhatsApp client is READY!');
             
+            // Get actual phone number from WhatsApp connection
+            const actualPhoneNumber = this.client.user?.id?.replace(/:\d+$/, '') || 'unknown';
+            this.currentPhoneNumber = actualPhoneNumber;
+            
             // ✅ ADDED: Syncing phase
             this.io.emit('status_update', {
                 status: 'syncing',
                 message: 'Syncing with WhatsApp...',
-                phoneNumber: this.currentPhoneNumber
+                phoneNumber: actualPhoneNumber
             });
-            
-            // Get actual phone number from WhatsApp connection
-            const actualPhoneNumber = this.client.user?.id?.replace(/:\d+$/, '') || 'unknown';
             
             // Generate session ID for bots
             this.sessionId = generateSessionId();
             
-            // ✅ ADDED: Send session ID to owner's WhatsApp
-            await this.sendSessionToOwner(actualPhoneNumber);
-            
             // Send introduction messages
             await this.sendIntroMessages();
-            
-            // ✅ ADDED: Syncing confirmation
-            await this.sendSyncingConfirmation();
             
             // Clear QR data
             this.currentQR = null;
@@ -520,87 +540,15 @@ class SavageBotsScanner {
                 status: 'connected',
                 sessionId: this.sessionId,
                 phoneNumber: actualPhoneNumber,
-                ownerPhoneNumber: this.ownerPhoneNumber,
                 message: '✅ SAVAGE BOTS SCANNER is now active and synced!',
                 timestamp: new Date()
             });
             
             console.log(`🆔 [SCANNER] Session ID generated: ${this.sessionId}`);
             console.log(`📱 [SCANNER] Connected as: ${actualPhoneNumber}`);
-            console.log(`👑 [SCANNER] Owner notified: ${this.ownerPhoneNumber}`);
             
         } catch (error) {
             console.error('❌ [SCANNER] Ready state handling failed:', error);
-        }
-    }
-
-    /**
-     * 🆕 SEND SESSION ID TO OWNER'S WHATSAPP
-     */
-    async sendSessionToOwner(connectedNumber) {
-        try {
-            if (!this.ownerPhoneNumber) {
-                console.warn('⚠️ [SCANNER] No owner phone number set for session notification');
-                return;
-            }
-
-            const sessionMessage = `
-🦅 *SAVAGE BOTS SCANNER - SESSION ACTIVATED*
-
-✅ *Connection Successful!*
-📱 Connected Number: ${connectedNumber}
-👑 Owner Number: ${this.ownerPhoneNumber}
-🆔 Session ID: ${this.sessionId}
-⏰ Activated: ${new Date().toLocaleString()}
-
-🔒 *Security Note:* Keep this session ID secure. It's used for bot connections.
-
-⚡ *Next Steps:* Your bots can now connect using this session ID.
-
-🦅 *SAVAGE BOTS TECHNOLOGY*
-"When ordinary isn't an option"
-            `.trim();
-
-            // Send to owner's number
-            await this.client.sendMessage(this.ownerPhoneNumber + '@s.whatsapp.net', { 
-                text: sessionMessage 
-            });
-            
-            console.log(`✅ [SCANNER] Session ID sent to owner: ${this.ownerPhoneNumber}`);
-            
-        } catch (error) {
-            console.error('❌ [SCANNER] Failed to send session to owner:', error.message);
-        }
-    }
-
-    /**
-     * 🆕 SEND SYNCING CONFIRMATION
-     */
-    async sendSyncingConfirmation() {
-        try {
-            const syncMessage = `
-🔄 *SAVAGE BOTS SCANNER - SYNCING COMPLETE*
-
-✅ All systems are now synchronized
-📱 WhatsApp: Connected and Ready
-🤖 Bots: Ready for Connection  
-🔧 Scanner: Operational
-🦅 Status: FULLY OPERATIONAL
-
-⚡ You can now connect your bots using the session ID.
-
-🦅 *SAVAGE BOTS TECHNOLOGY*
-            `.trim();
-
-            // Send to connected number
-            const userJid = this.client.user?.id;
-            if (userJid) {
-                await this.client.sendMessage(userJid, { text: syncMessage });
-                console.log('✅ [SCANNER] Syncing confirmation sent');
-            }
-            
-        } catch (error) {
-            console.warn('⚠️ [SCANNER] Failed to send syncing confirmation:', error.message);
         }
     }
 
@@ -645,32 +593,7 @@ class SavageBotsScanner {
     }
 
     /**
-     * 📱 Handle phone number from client
-     */
-    handlePhoneNumber(phoneNumber) {
-        console.log(`📱 [SCANNER] Phone number set: ${phoneNumber}`);
-        this.currentPhoneNumber = phoneNumber;
-        
-        // Broadcast to all connected clients
-        this.io.emit('phone_number_updated', { 
-            phoneNumber: phoneNumber,
-            timestamp: new Date().toISOString()
-        });
-        
-        // If we have QR data, update it with the phone number
-        if (this.currentQR) {
-            this.io.emit('qr_data', {
-                qrImage: this.currentQR,
-                qrRaw: this.currentQR,
-                pairingCode: this.currentPairingCode,
-                phoneNumber: phoneNumber,
-                timestamp: Date.now()
-            });
-        }
-    }
-
-    /**
-     * 🔌 Setup WebSocket communication - ✅ UPDATED: Added pairing generation & logout
+     * 🔌 Setup WebSocket communication - ✅ UPDATED: Simplified for auto QR generation
      */
     setupWebSocket() {
         this.io.on('connection', (socket) => {
@@ -683,8 +606,7 @@ class SavageBotsScanner {
                 authenticated: this.isAuthenticated,
                 hasQr: !!this.currentQR,
                 sessionId: this.sessionId,
-                currentPhoneNumber: this.currentPhoneNumber,
-                ownerPhoneNumber: this.ownerPhoneNumber
+                currentPhoneNumber: this.currentPhoneNumber
             };
             
             socket.emit('scanner_status', status);
@@ -693,8 +615,7 @@ class SavageBotsScanner {
                 socket.emit('ready', {
                     status: 'connected',
                     sessionId: this.sessionId,
-                    phoneNumber: this.client.user?.id?.replace(/:\d+$/, '') || 'unknown',
-                    ownerPhoneNumber: this.ownerPhoneNumber,
+                    phoneNumber: this.currentPhoneNumber,
                     message: 'Scanner is active and ready'
                 });
             } else if (this.currentQR) {
@@ -702,39 +623,35 @@ class SavageBotsScanner {
                 socket.emit('qr_data', {
                     qrImage: this.currentQR,
                     pairingCode: this.currentPairingCode,
-                    phoneNumber: this.currentPhoneNumber,
-                    ownerPhoneNumber: this.ownerPhoneNumber,
                     timestamp: Date.now()
                 });
             }
 
-            // Handle phone number from client
-            socket.on('set_phone_number', (data) => {
-                this.handlePhoneNumber(data.phoneNumber);
-            });
-
-            // ✅ ADDED: Generate pairing code for specific number
-            socket.on('generate_pairing_code', async (data) => {
-                try {
-                    const { phoneNumber } = data;
-                    if (!phoneNumber) {
-                        socket.emit('pairing_generated', {
-                            success: false,
-                            error: 'Phone number is required'
-                        });
-                        return;
-                    }
-
-                    const result = await this.generatePairingForNumber(phoneNumber);
-                    socket.emit('pairing_generated', result);
-                    
-                } catch (error) {
-                    console.error('❌ [SCANNER] Pairing generation error:', error);
-                    socket.emit('pairing_generated', {
-                        success: false,
-                        error: 'Failed to generate pairing code'
-                    });
+            // ✅ ADDED: Refresh QR code request
+            socket.on('refresh_qr', () => {
+                console.log(`🔄 [SCANNER] QR refresh requested by: ${socket.id}`);
+                
+                if (this.client) {
+                    this.client.logout();
+                    this.client = null;
                 }
+                
+                this.isAuthenticated = false;
+                this.sessionId = null;
+                this.currentPhoneNumber = null;
+                this.currentQR = null;
+                this.currentPairingCode = null;
+                this.reconnectAttempts = 0;
+                
+                // Restart WhatsApp connection
+                setTimeout(() => {
+                    this.initializeWhatsApp().catch(console.error);
+                }, 1000);
+                
+                socket.emit('qr_refreshed', {
+                    success: true,
+                    message: 'QR code refresh initiated'
+                });
             });
 
             // ✅ ADDED: Handle logout request
@@ -746,10 +663,10 @@ class SavageBotsScanner {
                     this.isAuthenticated = false;
                     this.sessionId = null;
                     this.currentPhoneNumber = null;
-                    this.ownerPhoneNumber = null;
                     this.currentQR = null;
                     this.currentPairingCode = null;
                     this.connectedBots.clear();
+                    this.reconnectAttempts = 0;
                     
                     // Logout from WhatsApp
                     if (this.client) {
@@ -769,6 +686,11 @@ class SavageBotsScanner {
                     this.io.emit('logout', {
                         message: 'Scanner has been logged out'
                     });
+                    
+                    // Restart WhatsApp for new QR
+                    setTimeout(() => {
+                        this.initializeWhatsApp().catch(console.error);
+                    }, 3000);
                     
                     console.log('✅ [SCANNER] Logout completed successfully');
                     
@@ -853,7 +775,7 @@ class SavageBotsScanner {
                     sessionId: this.sessionId,
                     connectedBots: Array.from(this.connectedBots),
                     currentPhoneNumber: this.currentPhoneNumber,
-                    ownerPhoneNumber: this.ownerPhoneNumber,
+                    hasQr: !!this.currentQR,
                     timestamp: new Date()
                 };
                 socket.emit('status', status);
