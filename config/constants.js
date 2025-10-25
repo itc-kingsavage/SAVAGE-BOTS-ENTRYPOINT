@@ -1,7 +1,7 @@
 /**
  * 🦅 SAVAGE BOTS SCANNER - Constants & Configuration
  * Centralized configuration for SAVAGE BOTS ecosystem
- * UPDATED for Baileys v6.4.0 Compatibility
+ * UPDATED: QR Auto-regeneration + 8-digit Pairing Codes
  */
 
 const path = require('path');
@@ -11,7 +11,7 @@ const path = require('path');
 // =============================================================================
 const SCANNER_IDENTITY = {
     NAME: 'SAVAGE BOTS SCANNER',
-    VERSION: '2.0.0',
+    VERSION: '2.1.0', // ✅ UPDATED: Enhanced pairing codes
     CODE_NAME: 'PROJECT-XMD',
     DEVELOPER: 'SAVAGE BOTS TECHNOLOGY',
     MOTTO: 'When ordinary isn\'t an option',
@@ -118,7 +118,7 @@ const WHATSAPP_CONFIG = {
         }
     },
     
-    // QR Code settings
+    // QR Code settings - ✅ UPDATED: Auto-regeneration
     QR: {
         WIDTH: 400, // ✅ INCREASED: Better visibility
         HEIGHT: 400,
@@ -128,7 +128,9 @@ const WHATSAPP_CONFIG = {
             LIGHT: '#000000' // Black
         },
         TIMEOUT: 120000, // ✅ REDUCED: 2 minutes for better UX
-        REGENERATE_INTERVAL: 60000 // 1 minute
+        REGENERATION_INTERVAL: 30000, // ✅ ADDED: 30 seconds auto-refresh
+        MAX_REGENERATION_ATTEMPTS: 10, // ✅ ADDED: Limit regeneration
+        NOTIFY_ON_REFRESH: true // ✅ ADDED: Show notifications
     },
     
     // Scanner connection management
@@ -140,12 +142,15 @@ const WHATSAPP_CONFIG = {
         CONNECTION_TIMEOUT: 30000
     },
     
-    // Pairing code settings
+    // Pairing code settings - ✅ UPDATED: 8-digit codes
     PAIRING: {
-        LENGTH: 6,
+        LENGTH: 8, // ✅ CHANGED: 8-digit codes (was 6)
         CHARSET: '0123456789',
         TIMEOUT: 300000, // 5 minutes
-        MAX_ATTEMPTS: 3
+        MAX_ATTEMPTS: 3,
+        ALLOW_MANUAL_GENERATION: true, // ✅ ADDED: Manual generation
+        REQUIRE_PHONE_NUMBER: false, // ✅ ADDED: Optional phone input
+        AUTO_GENERATE_WITH_QR: true // ✅ ADDED: Generate with QR
     }
 };
 
@@ -171,7 +176,8 @@ const DATABASE_CONFIG = {
             SESSIONS: 'savage_sessions',
             USERS: 'savage_users',
             LOGS: 'savage_logs',
-            STATS: 'savage_stats'
+            STATS: 'savage_stats',
+            PAIRING_CODES: 'savage_pairing_codes' // ✅ ADDED: Pairing code storage
         }
     },
     
@@ -259,7 +265,8 @@ const BOT_CONFIG = {
             RESPONSE: 'response',
             BROADCAST: 'broadcast',
             STATUS: 'status',
-            ERROR: 'error'
+            ERROR: 'error',
+            PAIRING_CODE: 'pairing_code' // ✅ ADDED: Pairing code messages
         },
         
         PRIORITIES: {
@@ -283,7 +290,8 @@ const UI_CONFIG = {
         TEXT: '#00FF00',       // Green
         WARNING: '#FFFF00',    // Yellow
         ERROR: '#FF0000',      // Red
-        SUCCESS: '#00FF00'     // Green
+        SUCCESS: '#00FF00',    // Green
+        PAIRING_CODE: '#00FFFF' // ✅ ADDED: Pairing code color
     },
     
     // Hacker theme elements
@@ -302,7 +310,7 @@ const UI_CONFIG = {
         }
     },
     
-    // Scanner interface
+    // Scanner interface - ✅ UPDATED: Enhanced pairing section
     SCANNER: {
         QR_SIZE: 400, // ✅ INCREASED: Better visibility
         STATUS_REFRESH: 5000, // 5 seconds
@@ -315,13 +323,23 @@ const UI_CONFIG = {
             DISCONNECTED: '#FF0000',
             CONNECTING: '#FFFF00',
             QR_READY: '#00FFFF',
-            SYNCING: '#FF00FF'
+            SYNCING: '#FF00FF',
+            PAIRING_READY: '#00FFFF' // ✅ ADDED: Pairing ready color
+        },
+        
+        // ✅ ADDED: Pairing code section styling
+        PAIRING_SECTION: {
+            BACKGROUND: 'rgba(0, 255, 255, 0.1)',
+            BORDER: '1px solid #00FFFF',
+            HEADER_COLOR: '#00FFFF',
+            CODE_FONT_SIZE: '24px',
+            CODE_COLOR: '#00FFFF'
         }
     }
 };
 
 // =============================================================================
-// 📧 MESSAGES & CONTENT
+// 📧 MESSAGES & CONTENT - ✅ UPDATED: Pairing code messages
 // =============================================================================
 const MESSAGES = {
     // Connection flow messages
@@ -334,7 +352,20 @@ const MESSAGES = {
         SUCCESS: '✅ Connection established successfully!',
         FAILED: '❌ Connection failed. Please try again.',
         TIMEOUT: '⏰ Connection timeout. Regenerating QR code...',
-        DISCONNECTED: '🔌 WhatsApp connection lost. Reconnecting...'
+        DISCONNECTED: '🔌 WhatsApp connection lost. Reconnecting...',
+        QR_REFRESHING: '🔄 Auto-refreshing QR code...' // ✅ ADDED: QR refresh message
+    },
+    
+    // Pairing code messages - ✅ ADDED: Enhanced pairing messages
+    PAIRING: {
+        GENERATING: '🔢 Generating 8-digit pairing code...',
+        READY: '✅ 8-digit pairing code ready!',
+        MANUAL_GENERATED: '🔢 Manual pairing code generated',
+        WITH_PHONE: '📱 Pairing code generated for specific number',
+        COPIED: '📋 Pairing code copied to clipboard',
+        EXPIRED: '⏰ Pairing code expired',
+        INVALID_PHONE: '❌ Invalid phone number format',
+        GENERATION_FAILED: '❌ Failed to generate pairing code'
     },
     
     // Introduction messages (sent after successful connection)
@@ -362,7 +393,8 @@ const MESSAGES = {
         RATE_LIMITED: '⚡ Rate limit exceeded. Please wait before trying again.',
         BOT_CONNECTION_FAILED: '🤖 Bot connection failed. Check session ID and try again.',
         WHATSAPP_INIT_FAILED: '❌ WhatsApp initialization failed. Running in limited mode.',
-        QR_GENERATION_FAILED: '❌ QR code generation failed. Please refresh.'
+        QR_GENERATION_FAILED: '❌ QR code generation failed. Please refresh.',
+        PAIRING_GENERATION_FAILED: '❌ Pairing code generation failed' // ✅ ADDED
     },
     
     // Status messages for frontend
@@ -371,7 +403,9 @@ const MESSAGES = {
         WHATSAPP_CONNECTED: '✅ WhatsApp connected and ready',
         WHATSAPP_DISCONNECTED: '🔌 WhatsApp disconnected',
         BOTS_CONNECTED: '🤖 Bots connected and operational',
-        LIMITED_MODE: '⚠️ Running in limited mode - WhatsApp unavailable'
+        LIMITED_MODE: '⚠️ Running in limited mode - WhatsApp unavailable',
+        QR_AUTO_REFRESH: '🔄 QR auto-refresh active (30s)', // ✅ ADDED
+        PAIRING_CODE_READY: '🔢 8-digit pairing code ready' // ✅ ADDED
     }
 };
 
@@ -475,6 +509,27 @@ module.exports = {
         return `savage-${timestamp}-${random}-${uuid}`.toLowerCase();
     },
     
+    // ✅ ADDED: Generate 8-digit pairing code
+    generatePairingCode() {
+        const crypto = require('crypto');
+        const numbers = '0123456789';
+        let code = '';
+        
+        for (let i = 0; i < WHATSAPP_CONFIG.PAIRING.LENGTH; i++) {
+            const randomIndex = crypto.randomInt(0, numbers.length);
+            code += numbers[randomIndex];
+        }
+        
+        return code;
+    },
+    
+    // ✅ ADDED: Validate phone number for pairing
+    isValidPhoneNumber(phone) {
+        if (!phone || phone.trim() === '') return true; // Allow empty for auto-generation
+        const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+        return phoneRegex.test(phone.replace(/\s/g, ''));
+    },
+    
     // Get bot configuration by name
     getBotConfig(botName) {
         return SCANNER_IDENTITY.BOTS[botName] || null;
@@ -506,6 +561,26 @@ module.exports = {
             maxAttempts: WHATSAPP_CONFIG.SCANNER.MAX_RECONNECT_ATTEMPTS,
             delay: WHATSAPP_CONFIG.SCANNER.RECONNECT_DELAY,
             autoReconnect: WHATSAPP_CONFIG.SCANNER.AUTO_RECONNECT
+        };
+    },
+    
+    // ✅ ADDED: Get QR regeneration settings
+    getQRRegenerationSettings() {
+        return {
+            interval: WHATSAPP_CONFIG.QR.REGENERATION_INTERVAL,
+            maxAttempts: WHATSAPP_CONFIG.QR.MAX_REGENERATION_ATTEMPTS,
+            notify: WHATSAPP_CONFIG.QR.NOTIFY_ON_REFRESH
+        };
+    },
+    
+    // ✅ ADDED: Get pairing code settings
+    getPairingCodeSettings() {
+        return {
+            length: WHATSAPP_CONFIG.PAIRING.LENGTH,
+            timeout: WHATSAPP_CONFIG.PAIRING.TIMEOUT,
+            allowManual: WHATSAPP_CONFIG.PAIRING.ALLOW_MANUAL_GENERATION,
+            requirePhone: WHATSAPP_CONFIG.PAIRING.REQUIRE_PHONE_NUMBER,
+            autoGenerate: WHATSAPP_CONFIG.PAIRING.AUTO_GENERATE_WITH_QR
         };
     }
 };
