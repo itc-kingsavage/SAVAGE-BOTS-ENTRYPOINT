@@ -2,7 +2,7 @@
  * 🦅 SAVAGE BOTS SCANNER - Advanced Generators System
  * BMW-style session IDs, pairing codes, and secure random generation
  * Military-grade random generation for maximum security
- * UPDATED: Automatic QR Generation & Render Deployment
+ * UPDATED: 8-digit Pairing Codes + QR Regeneration Support
  */
 
 const crypto = require('crypto');
@@ -19,7 +19,7 @@ class SavageGenerators {
                 charset: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
             },
             pairingCode: {
-                length: 6,
+                length: 8, // ✅ CHANGED: 8 digits (was 6)
                 charset: '0123456789',
                 expiry: 300000, // 5 minutes
                 maxAttempts: 3
@@ -45,11 +45,17 @@ class SavageGenerators {
                 minEntropy: 128,
                 maxHistory: 1000,
                 collisionCheck: true
+            },
+            qr: {
+                regenerationInterval: 30000, // ✅ ADDED: 30 seconds
+                maxRegenerationAttempts: 10, // ✅ ADDED: Limit attempts
+                timeout: 120000 // ✅ ADDED: 2 minutes
             }
         };
 
         this.generationHistory = new Map();
         this.usedIdentifiers = new Set();
+        this.qrRegenerationTracker = new Map(); // ✅ ADDED: Track QR regeneration
         this.init();
     }
 
@@ -59,9 +65,11 @@ class SavageGenerators {
     init() {
         console.log('🎲 [GENERATORS] Savage Generators System Initialized');
         console.log(`🔧 [GENERATORS] Session ID Format: ${this.config.sessionId.prefix}-[8char]-[timestamp]-[8char]`);
-        console.log(`🔢 [GENERATORS] Pairing Code Length: ${this.config.pairingCode.length} digits`);
+        console.log(`🔢 [GENERATORS] Pairing Code Length: ${this.config.pairingCode.length} digits`); // ✅ UPDATED: 8 digits
+        console.log(`🔄 [GENERATORS] QR Regeneration: ${this.config.qr.regenerationInterval}ms intervals`); // ✅ ADDED
         
         this.startCleanupInterval();
+        this.startQRRegenerationMonitor(); // ✅ ADDED: QR regeneration monitor
     }
 
     /**
@@ -101,24 +109,25 @@ class SavageGenerators {
     }
 
     /**
-     * 🔢 Generate 6-digit pairing code
+     * 🔢 Generate 8-digit pairing code - UPDATED
      */
-    generatePairingCode() {
+    generatePairingCode(phoneNumber = null) {
         try {
             let code;
             let attempts = 0;
             const maxAttempts = 10;
 
             do {
-                // ✅ IMPROVED: Better random generation for pairing codes
+                // ✅ IMPROVED: Better random generation for 8-digit pairing codes
                 const randomBytes = crypto.randomBytes(4);
                 const randomNum = randomBytes.readUInt32BE(0);
-                code = (randomNum % 900000 + 100000).toString(); // Ensure 6 digits
+                // ✅ CHANGED: Generate 8-digit code (was 6)
+                code = (randomNum % 90000000 + 10000000).toString(); // Ensure 8 digits
                 attempts++;
                 
                 if (attempts > maxAttempts) {
                     // ✅ FALLBACK: Simple random as last resort
-                    code = Math.floor(100000 + Math.random() * 900000).toString();
+                    code = Math.floor(10000000 + Math.random() * 90000000).toString();
                     break;
                 }
             } while (this.generationHistory.has(`pairing_${code}`));
@@ -128,16 +137,18 @@ class SavageGenerators {
                 generatedAt: Date.now(),
                 expiresAt: Date.now() + this.config.pairingCode.expiry,
                 attempts: 0,
-                maxAttempts: this.config.pairingCode.maxAttempts
+                maxAttempts: this.config.pairingCode.maxAttempts,
+                phoneNumber: phoneNumber, // ✅ ADDED: Track phone number
+                isManual: !!phoneNumber // ✅ ADDED: Manual generation flag
             });
 
-            console.log(`🔢 [GENERATORS] Pairing code generated: ${code}`);
+            console.log(`🔢 [GENERATORS] ${phoneNumber ? 'Manual' : 'Auto'} 8-digit pairing code generated: ${code}`);
             return code;
 
         } catch (error) {
             console.error('❌ [GENERATORS] Pairing code generation failed:', error);
-            // ✅ FALLBACK: Simple random generation
-            return Math.floor(100000 + Math.random() * 900000).toString();
+            // ✅ FALLBACK: Simple random generation (8 digits)
+            return Math.floor(10000000 + Math.random() * 90000000).toString();
         }
     }
 
@@ -256,13 +267,13 @@ class SavageGenerators {
     }
 
     /**
-     * ✅ Validate pairing code
+     * ✅ Validate pairing code - UPDATED for 8 digits
      */
     validatePairingCode(code) {
         if (typeof code !== 'string') return false;
         
-        // Check format (6 digits)
-        const codePattern = /^\d{6}$/;
+        // ✅ CHANGED: Check format (8 digits now)
+        const codePattern = /^\d{8}$/;
         if (!codePattern.test(code)) return false;
 
         // Check if code exists and is not expired
@@ -322,8 +333,9 @@ class SavageGenerators {
                 emoji: baseConfig.emoji,
                 features: this.generateBotFeatures(botName),
                 commands: this.generateBotCommands(botName),
-                connectionType: 'automatic', // ✅ ADDED: Automatic mode
-                platform: 'render', // ✅ ADDED: Render deployment
+                connectionType: 'automatic',
+                platform: 'render',
+                pairingCodeLength: this.config.pairingCode.length, // ✅ ADDED: 8-digit info
                 generatedAt: new Date().toISOString()
             };
         } catch (error) {
@@ -340,6 +352,7 @@ class SavageGenerators {
                 commands: ['!help', '!status'],
                 connectionType: 'automatic',
                 platform: 'render',
+                pairingCodeLength: this.config.pairingCode.length,
                 generatedAt: new Date().toISOString()
             };
         }
@@ -356,7 +369,9 @@ class SavageGenerators {
                 floodProtection: true,
                 advancedAI: true,
                 multiTarget: true,
-                automaticQR: true // ✅ ADDED: Auto QR support
+                automaticQR: true,
+                enhancedPairing: true, // ✅ ADDED: Enhanced pairing support
+                qrRegeneration: true // ✅ ADDED: QR regeneration support
             },
             'DE-UKNOWN-BOT': {
                 mysteryMode: true,
@@ -364,7 +379,9 @@ class SavageGenerators {
                 autoResponse: true,
                 advancedAI: true,
                 encryption: true,
-                automaticQR: true // ✅ ADDED: Auto QR support
+                automaticQR: true,
+                enhancedPairing: true, // ✅ ADDED: Enhanced pairing support
+                qrRegeneration: true // ✅ ADDED: QR regeneration support
             },
             'QUEEN-RIXIE': {
                 royalProtocol: true,
@@ -373,7 +390,9 @@ class SavageGenerators {
                 eliteAI: true,
                 courtSession: false,
                 royalGuard: true,
-                automaticQR: true // ✅ ADDED: Auto QR support
+                automaticQR: true,
+                enhancedPairing: true, // ✅ ADDED: Enhanced pairing support
+                qrRegeneration: true // ✅ ADDED: QR regeneration support
             }
         };
 
@@ -381,7 +400,9 @@ class SavageGenerators {
             basicMode: true,
             autoResponse: true,
             encryption: true,
-            automaticQR: true // ✅ ADDED: Auto QR support
+            automaticQR: true,
+            enhancedPairing: true,
+            qrRegeneration: true
         };
     }
 
@@ -504,6 +525,50 @@ class SavageGenerators {
     }
 
     /**
+     * 🔄 Start QR regeneration monitor - NEW METHOD
+     */
+    startQRRegenerationMonitor() {
+        try {
+            // Monitor QR regeneration every minute
+            setInterval(() => {
+                this.monitorQRRegeneration();
+            }, 60000);
+
+            console.log('🔄 [GENERATORS] QR regeneration monitor started');
+        } catch (error) {
+            console.error('❌ [GENERATORS] Failed to start QR regeneration monitor:', error);
+        }
+    }
+
+    /**
+     * 📱 Monitor QR regeneration status - NEW METHOD
+     */
+    monitorQRRegeneration() {
+        try {
+            const now = Date.now();
+            let activeRegenerations = 0;
+            let expiredRegenerations = 0;
+
+            for (const [qrId, data] of this.qrRegenerationTracker.entries()) {
+                if (now - data.lastRegenerated > this.config.qr.regenerationInterval * 2) {
+                    // QR regeneration seems stuck
+                    console.warn(`⚠️ [GENERATORS] QR regeneration stuck for ${qrId}`);
+                    this.qrRegenerationTracker.delete(qrId);
+                    expiredRegenerations++;
+                } else {
+                    activeRegenerations++;
+                }
+            }
+
+            if (expiredRegenerations > 0) {
+                console.log(`🔄 [GENERATORS] QR regeneration monitor: ${activeRegenerations} active, ${expiredRegenerations} expired`);
+            }
+        } catch (error) {
+            console.error('❌ [GENERATORS] QR regeneration monitoring failed:', error);
+        }
+    }
+
+    /**
      * 🎲 Generate secure random number in range
      */
     generateSecureRandom(min, max) {
@@ -566,12 +631,20 @@ class SavageGenerators {
                 totalGenerations: this.generationHistory.size,
                 usedIdentifiers: this.usedIdentifiers.size,
                 recentGenerations,
+                qrRegeneration: {
+                    active: this.qrRegenerationTracker.size,
+                    interval: this.config.qr.regenerationInterval
+                },
+                pairingCodes: {
+                    length: this.config.pairingCode.length,
+                    expiry: this.config.pairingCode.expiry
+                },
                 config: {
                     sessionIdFormat: this.config.sessionId.prefix,
                     pairingCodeLength: this.config.pairingCode.length,
                     minEntropy: this.config.security.minEntropy
                 },
-                platform: 'render', // ✅ ADDED: Platform info
+                platform: 'render',
                 timestamp: new Date()
             };
         } catch (error) {
@@ -595,15 +668,21 @@ class SavageGenerators {
             const testSessionId = this.generateSessionId('TEST');
             const sessionIdValid = this.validateSessionId(testSessionId);
             
-            // Test pairing code generation
+            // Test pairing code generation (8-digit now)
             const testPairingCode = this.generatePairingCode();
             const pairingCodeValid = this.validatePairingCode(testPairingCode);
 
+            // Test QR regeneration tracking
+            const qrData = this.generateQRData();
+            const qrTrackingValid = !!qrData.qrId;
+
             return {
-                status: sessionIdValid && pairingCodeValid ? 'healthy' : 'unhealthy',
+                status: sessionIdValid && pairingCodeValid && qrTrackingValid ? 'healthy' : 'unhealthy',
                 tests: {
                     sessionIdGeneration: sessionIdValid,
                     pairingCodeGeneration: pairingCodeValid,
+                    qrRegenerationTracking: qrTrackingValid,
+                    pairingCodeLength: this.config.pairingCode.length,
                     platform: 'render'
                 },
                 stats: this.getStats(),
@@ -620,29 +699,95 @@ class SavageGenerators {
     }
 
     /**
-     * 🆕 Generate QR code data for automatic mode
+     * 🆕 Generate QR code data for automatic mode - ENHANCED
      */
-    generateQRData() {
+    generateQRData(phoneNumber = null) {
         try {
             const qrId = crypto.randomBytes(8).toString('hex');
-            const expiresAt = Date.now() + 120000; // 2 minutes
+            const expiresAt = Date.now() + this.config.qr.timeout;
+            const pairingCode = this.generatePairingCode(phoneNumber);
             
+            // Track QR regeneration
+            this.qrRegenerationTracker.set(qrId, {
+                lastRegenerated: Date.now(),
+                regenerationCount: 1,
+                pairingCode: pairingCode,
+                phoneNumber: phoneNumber,
+                expiresAt: expiresAt
+            });
+
             return {
                 qrId,
                 expiresAt,
                 generatedAt: Date.now(),
-                pairingCode: this.generatePairingCode(),
-                automatic: true // ✅ ADDED: Auto-generation flag
+                pairingCode: pairingCode,
+                automatic: true,
+                phoneNumber: phoneNumber,
+                isManual: !!phoneNumber, // ✅ ADDED: Manual generation flag
+                length: this.config.pairingCode.length // ✅ ADDED: Code length info
             };
         } catch (error) {
             console.error('❌ [GENERATORS] QR data generation failed:', error);
             return {
                 qrId: 'fallback-qr',
-                expiresAt: Date.now() + 120000,
+                expiresAt: Date.now() + this.config.qr.timeout,
                 generatedAt: Date.now(),
-                pairingCode: this.generatePairingCode(),
-                automatic: true
+                pairingCode: this.generatePairingCode(phoneNumber),
+                automatic: true,
+                phoneNumber: phoneNumber,
+                isManual: !!phoneNumber,
+                length: this.config.pairingCode.length
             };
+        }
+    }
+
+    /**
+     * 🔄 Track QR regeneration - NEW METHOD
+     */
+    trackQRRegeneration(qrId) {
+        try {
+            const existing = this.qrRegenerationTracker.get(qrId);
+            if (existing) {
+                existing.regenerationCount++;
+                existing.lastRegenerated = Date.now();
+                
+                // Check if we've hit the regeneration limit
+                if (existing.regenerationCount >= this.config.qr.maxRegenerationAttempts) {
+                    console.warn(`⚠️ [GENERATORS] QR ${qrId} hit regeneration limit (${existing.regenerationCount})`);
+                    this.qrRegenerationTracker.delete(qrId);
+                    return false;
+                }
+                
+                return true;
+            }
+            
+            return false;
+        } catch (error) {
+            console.error('❌ [GENERATORS] QR regeneration tracking failed:', error);
+            return false;
+        }
+    }
+
+    /**
+     * 📱 Get QR regeneration status - NEW METHOD
+     */
+    getQRRegenerationStatus(qrId) {
+        try {
+            const data = this.qrRegenerationTracker.get(qrId);
+            if (!data) return null;
+
+            return {
+                qrId,
+                regenerationCount: data.regenerationCount,
+                lastRegenerated: data.lastRegenerated,
+                nextRegeneration: data.lastRegenerated + this.config.qr.regenerationInterval,
+                pairingCode: data.pairingCode,
+                phoneNumber: data.phoneNumber,
+                isActive: Date.now() - data.lastRegenerated < this.config.qr.regenerationInterval * 2
+            };
+        } catch (error) {
+            console.error('❌ [GENERATORS] QR regeneration status check failed:', error);
+            return null;
         }
     }
 }
@@ -654,12 +799,14 @@ module.exports = savageGenerators;
 
 // 🚀 Quick utility functions
 module.exports.generateSessionId = (botName, platform) => savageGenerators.generateSessionId(botName, platform);
-module.exports.generatePairingCode = () => savageGenerators.generatePairingCode();
+module.exports.generatePairingCode = (phoneNumber) => savageGenerators.generatePairingCode(phoneNumber); // ✅ UPDATED: Phone number parameter
 module.exports.generateAuthToken = (botName, sessionId, purpose) => savageGenerators.generateAuthToken(botName, sessionId, purpose);
 module.exports.validateSessionId = (sessionId) => savageGenerators.validateSessionId(sessionId);
 module.exports.validatePairingCode = (code) => savageGenerators.validatePairingCode(code);
 module.exports.generateBotConfig = (botName) => savageGenerators.generateBotConfig(botName);
-module.exports.generateQRData = () => savageGenerators.generateQRData(); // ✅ ADDED: QR data generator
+module.exports.generateQRData = (phoneNumber) => savageGenerators.generateQRData(phoneNumber); // ✅ UPDATED: Phone number parameter
+module.exports.trackQRRegeneration = (qrId) => savageGenerators.trackQRRegeneration(qrId); // ✅ ADDED: QR regeneration tracking
+module.exports.getQRRegenerationStatus = (qrId) => savageGenerators.getQRRegenerationStatus(qrId); // ✅ ADDED: QR status
 
 // 📝 Example usage
 if (require.main === module) {
@@ -675,23 +822,40 @@ if (require.main === module) {
             console.log('✅ Valid:', savageGenerators.validateSessionId(sessionId));
             console.log('✅ Entropy:', savageGenerators.calculateEntropy(sessionId).toFixed(2), 'bits\n');
 
-            // Test pairing code generation
-            console.log('🔢 Testing Pairing Code Generation...');
+            // Test 8-digit pairing code generation
+            console.log('🔢 Testing 8-digit Pairing Code Generation...');
             const pairingCode = savageGenerators.generatePairingCode();
             console.log('✅ Generated:', pairingCode);
+            console.log('✅ Length:', pairingCode.length, 'digits');
             console.log('✅ Valid:', savageGenerators.validatePairingCode(pairingCode), '\n');
+
+            // Test manual pairing code with phone number
+            console.log('📱 Testing Manual Pairing Code Generation...');
+            const manualPairingCode = savageGenerators.generatePairingCode('+1234567890');
+            console.log('✅ Manual code generated:', manualPairingCode);
+            console.log('✅ Length:', manualPairingCode.length, 'digits\n');
 
             // Test QR data generation
             console.log('📱 Testing QR Data Generation...');
             const qrData = savageGenerators.generateQRData();
             console.log('✅ Generated QR data with pairing code:', qrData.pairingCode);
-            console.log('✅ Automatic mode:', qrData.automatic, '\n');
+            console.log('✅ Automatic mode:', qrData.automatic);
+            console.log('✅ Code length:', qrData.length, 'digits\n');
+
+            // Test QR regeneration tracking
+            console.log('🔄 Testing QR Regeneration Tracking...');
+            const trackingResult = savageGenerators.trackQRRegeneration(qrData.qrId);
+            console.log('✅ QR regeneration tracked:', trackingResult);
+            
+            const qrStatus = savageGenerators.getQRRegenerationStatus(qrData.qrId);
+            console.log('✅ QR regeneration status:', qrStatus ? 'Active' : 'Inactive', '\n');
 
             // Test health check
             console.log('🏥 Testing Health Check...');
             const health = savageGenerators.healthCheck();
             console.log('✅ Status:', health.status);
-            console.log('✅ Platform:', health.tests.platform, '\n');
+            console.log('✅ Platform:', health.tests.platform);
+            console.log('✅ Pairing Code Length:', health.tests.pairingCodeLength, 'digits\n');
 
             console.log('🎯 All tests completed successfully!');
 
