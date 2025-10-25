@@ -2,7 +2,7 @@
  * 🦅 SAVAGE BOTS SCANNER - Hacker Theme CSS
  * Burning cards background + Matrix effects
  * Green-on-black terminal style
- * UPDATED: Automatic QR Generation & Render Deployment
+ * UPDATED: Enhanced 8-digit Pairing Codes + QR Regeneration
  */
 
 /* =============================================================================
@@ -26,6 +26,7 @@
     --warning-orange: #FF8800;
     --accent-blue: #0000FF;
     --accent-purple: #FF00FF;
+    --pairing-cyan: #00FFFF; /* ✅ ADDED: Pairing code color */
     
     /* 📏 Sizing */
     --border-glow: 2px;
@@ -284,7 +285,7 @@ body::before {
 .status-waiting_qr { background: rgba(0, 136, 255, 0.2); border-color: var(--accent-blue); animation: pulse 2s infinite; }
 
 /* =============================================================================
-   📱 SCANNER CONTENT LAYOUT - UPDATED FOR AUTOMATIC MODE
+   📱 SCANNER CONTENT LAYOUT - UPDATED FOR ENHANCED PAIRING
    ============================================================================= */
 .scanner-content {
     display: grid;
@@ -312,7 +313,7 @@ body::before {
 }
 
 /* =============================================================================
-   📶 QR CODE SECTION - UPDATED FOR AUTOMATIC GENERATION
+   📶 QR CODE SECTION - UPDATED WITH REGENERATION INDICATORS
    ============================================================================= */
 .qr-container {
     padding: 25px;
@@ -386,14 +387,68 @@ body::before {
     text-align: center;
 }
 
+/* ✅ ADDED: QR Regeneration Info */
+.qr-regeneration-info {
+    margin-top: 10px;
+    padding: 8px;
+    background: rgba(0, 255, 255, 0.1);
+    border: 1px solid rgba(0, 255, 255, 0.3);
+    border-radius: var(--terminal-radius);
+    font-size: 0.8rem;
+    color: var(--pairing-cyan);
+    text-align: center;
+}
+
 /* =============================================================================
-   🔢 PAIRING CODE SECTION - UPDATED FOR AUTOMATIC MODE
+   🔢 PAIRING CODE SECTION - ENHANCED WITH PHONE INPUT
    ============================================================================= */
 .pairing-container {
     text-align: center;
     padding: 25px;
+    background: rgba(0, 255, 255, 0.05); /* ✅ ADDED: Enhanced background */
+    border: 2px solid var(--pairing-cyan); /* ✅ ADDED: Cyan border */
 }
 
+/* ✅ ADDED: Phone Input Section */
+.pairing-input-section {
+    margin: 15px 0;
+    text-align: center;
+}
+
+.pairing-phone-input {
+    width: 100%;
+    max-width: 300px;
+    padding: 12px 15px;
+    background: rgba(0, 20, 0, 0.5);
+    border: 2px solid var(--accent-blue);
+    border-radius: var(--terminal-radius);
+    color: var(--matrix-bright);
+    font-family: 'Courier New', monospace;
+    font-size: 1rem;
+    text-align: center;
+    margin-bottom: 8px;
+    transition: all 0.3s ease;
+}
+
+.pairing-phone-input:focus {
+    outline: none;
+    border-color: var(--matrix-green);
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+    background: rgba(0, 30, 0, 0.7);
+}
+
+.pairing-phone-input::placeholder {
+    color: rgba(0, 255, 0, 0.5);
+}
+
+.input-hint {
+    display: block;
+    font-size: 0.8rem;
+    color: rgba(0, 255, 255, 0.7);
+    margin-top: 5px;
+}
+
+/* ✅ ENHANCED: 8-digit Pairing Code Display */
 .pairing-code {
     font-family: 'Courier New', monospace;
     font-size: 2.5rem;
@@ -406,6 +461,21 @@ body::before {
     word-break: break-all;
     text-shadow: 0 0 10px var(--matrix-green);
     animation: codeGlow 2s ease-in-out infinite;
+    color: var(--matrix-bright);
+}
+
+.pairing-code-active {
+    color: var(--matrix-bright);
+    border-color: var(--matrix-green);
+    background: rgba(0, 255, 0, 0.1);
+    animation: codeGlow 2s ease-in-out infinite;
+}
+
+.pairing-code-inactive {
+    color: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+    animation: none;
 }
 
 @keyframes codeGlow {
@@ -428,7 +498,7 @@ body::before {
 }
 
 /* =============================================================================
-   🔗 CONNECTION INFO SECTION - NEW FOR AUTOMATIC MODE
+   🔗 CONNECTION INFO SECTION - UPDATED
    ============================================================================= */
 .connection-info {
     padding: 25px;
@@ -591,7 +661,7 @@ body::before {
 }
 
 /* =============================================================================
-   🔑 SESSION INFORMATION - UPDATED FOR AUTOMATIC MODE
+   🔑 SESSION INFORMATION - UPDATED
    ============================================================================= */
 .session-info {
     padding: 25px;
@@ -867,7 +937,7 @@ body::before {
 }
 
 /* =============================================================================
-   🎯 STATUS INDICATORS - UPDATED FOR AUTOMATIC MODE
+   🎯 STATUS INDICATORS - UPDATED WITH PAIRING COLORS
    ============================================================================= */
 .status-connected { color: var(--matrix-bright); }
 .status-disconnected { color: var(--warning-red); }
@@ -905,7 +975,7 @@ body::before {
 }
 
 /* =============================================================================
-   📱 RESPONSIVE DESIGN - UPDATED
+   📱 RESPONSIVE DESIGN - ENHANCED FOR PAIRING SECTION
    ============================================================================= */
 @media (max-width: 768px) {
     .portal-title { font-size: 2rem; }
@@ -930,6 +1000,9 @@ body::before {
         width: 100%;
         max-width: 200px;
     }
+    .pairing-phone-input {
+        max-width: 100%;
+    }
 }
 
 @media (max-width: 480px) {
@@ -944,6 +1017,9 @@ body::before {
     .notification {
         padding: 12px;
         font-size: 0.8rem;
+    }
+    .pairing-controls {
+        flex-direction: column;
     }
 }
 
@@ -1137,4 +1213,152 @@ select:focus {
     background: rgba(255, 255, 0, 0.2);
     border: 1px solid var(--warning-yellow);
     color: var(--warning-yellow);
+}
+
+/* =============================================================================
+   🆕 PAIRING CODE ACTIVE STATES
+   ============================================================================= */
+.pairing-section-active {
+    background: rgba(0, 255, 255, 0.05);
+    border: 2px solid var(--pairing-cyan);
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+}
+
+.pairing-code-active {
+    animation: pulse 2s infinite;
+}
+
+/* =============================================================================
+   🆕 PHONE INPUT VALIDATION STYLES
+   ============================================================================= */
+.pairing-phone-input.valid {
+    border-color: var(--matrix-green);
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+.pairing-phone-input.invalid {
+    border-color: var(--warning-red);
+    box-shadow: 0 0 10px rgba(255, 0, 0, 0.3);
+}
+
+/* =============================================================================
+   🆕 QR REGENERATION STATUS STYLES
+   ============================================================================= */
+.qr-regeneration-status {
+    background: rgba(0, 255, 255, 0.1);
+    border: 1px solid var(--pairing-cyan);
+    padding: 10px;
+    border-radius: var(--terminal-radius);
+    margin: 10px 0;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--pairing-cyan);
+}
+
+.regeneration-countdown {
+    font-weight: bold;
+    color: var(--matrix-bright);
+    animation: pulse 1s infinite;
+}
+
+/* =============================================================================
+   🆕 ENHANCED PAIRING CODE DISPLAY
+   ============================================================================= */
+.pairing-code-display {
+    position: relative;
+    overflow: hidden;
+}
+
+.pairing-code-display::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.1), transparent);
+    animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* =============================================================================
+   🆕 MOBILE ENHANCEMENTS FOR PAIRING SECTION
+   ============================================================================= */
+@media (max-width: 480px) {
+    .pairing-container {
+        padding: 15px;
+    }
+    
+    .pairing-code {
+        font-size: 1.8rem;
+        letter-spacing: 4px;
+        padding: 15px;
+    }
+    
+    .pairing-phone-input {
+        font-size: 0.9rem;
+        padding: 10px 12px;
+    }
+    
+    .pairing-controls {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .pairing-controls .btn {
+        width: 100%;
+        margin: 5px 0;
+    }
+}
+
+/* =============================================================================
+   🆕 ACCESSIBILITY ENHANCEMENTS
+   ============================================================================= */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* =============================================================================
+   🆕 DARK MODE SUPPORT
+   ============================================================================= */
+@media (prefers-color-scheme: dark) {
+    .terminal-container {
+        background: rgba(0, 0, 0, 0.95);
+    }
+    
+    .password-input,
+    .pairing-phone-input {
+        background: rgba(0, 10, 0, 0.7);
+    }
+}
+
+/* =============================================================================
+   🆕 PRINT STYLES
+   ============================================================================= */
+@media print {
+    .matrix-rain,
+    .notifications-container,
+    .btn {
+        display: none !important;
+    }
+    
+    .terminal-container {
+        border: 2px solid #000;
+        box-shadow: none;
+        background: #fff;
+        color: #000;
+    }
+    
+    .pairing-code {
+        color: #000;
+        border-color: #000;
+    }
 }
