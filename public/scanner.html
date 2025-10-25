@@ -61,35 +61,36 @@
                     </div>
                 </div>
 
-                <!-- 🔢 PAIRING CODE Section - ENHANCED: Phone Input + 8-digit Codes -->
+                <!-- 🔢 PAIRING CODE Section - ENHANCED: Manual-only with Phone Input -->
                 <div class="terminal-container pairing-container">
                     <h3 class="section-title">🔢 PAIRING CODE</h3>
                     
-                    <!-- 📱 Phone Number Input - NEW -->
+                    <!-- 📱 Phone Number Input - REQUIRED -->
                     <div class="pairing-input-section">
                         <input 
                             type="text" 
                             id="pairingPhoneInput" 
                             class="pairing-phone-input"
-                            placeholder="+1234567890 (Optional)"
+                            placeholder="+1234567890 (Required)"
                             maxlength="20"
+                            required
                         >
-                        <small class="input-hint">Enter phone number for specific pairing (optional)</small>
+                        <small class="input-hint">Phone number REQUIRED for pairing codes</small>
                     </div>
                     
-                    <!-- 🔢 8-digit Pairing Code Display - UPDATED -->
-                    <div id="pairingCode" class="pairing-code">--------</div>
+                    <!-- 🔢 8-digit Pairing Code Display - UPDATED: Manual-only -->
+                    <div id="pairingCode" class="pairing-code pairing-code-inactive">--------</div>
                     
                     <div class="pairing-status">
-                        <span id="pairingStatus" class="status-waiting">8-digit pairing code ready</span>
+                        <span id="pairingStatus" class="status-waiting">Enter phone number to generate code</span>
                     </div>
                     
-                    <!-- 🎛️ Pairing Code Controls - ENHANCED -->
+                    <!-- 🎛️ Pairing Code Controls - ENHANCED: Manual generation only -->
                     <div class="pairing-controls">
                         <button id="generatePairingBtn" class="btn btn-primary btn-small">
                             🔄 Generate Code
                         </button>
-                        <button id="copyPairingBtn" class="btn btn-secondary btn-small">
+                        <button id="copyPairingBtn" class="btn btn-secondary btn-small" disabled>
                             📋 Copy Code
                         </button>
                     </div>
@@ -108,8 +109,8 @@
                             <span class="connection-value status-connected">ACTIVE (30s)</span>
                         </div>
                         <div class="connection-item">
-                            <span class="connection-label">Pairing Codes:</span>
-                            <span class="connection-value status-connected">8-DIGIT</span>
+                            <span class="connection-label">Pairing Mode:</span>
+                            <span class="connection-value status-waiting">MANUAL-ONLY</span>
                         </div>
                         <div class="connection-item">
                             <span class="connection-label">Platform:</span>
@@ -175,7 +176,7 @@
                     </div>
                 </div>
 
-                <!-- 🔑 Session Information - UPDATED: Enhanced Info -->
+                <!-- 🔑 Session Information - UPDATED: Manual-only pairing -->
                 <div class="terminal-container session-info">
                     <h3 class="section-title">🔑 SESSION INFORMATION</h3>
                     <div class="session-details">
@@ -196,7 +197,7 @@
                         </div>
                         <div class="session-item">
                             <span class="session-label">Pairing Mode:</span>
-                            <span class="session-value status-connected">8-DIGIT ENHANCED</span>
+                            <span class="session-value status-waiting">MANUAL-ONLY</span>
                         </div>
                         <div class="session-item">
                             <span class="session-label">Status:</span>
@@ -370,12 +371,12 @@
             color: #00FFFF;
         }
 
-        /* 🔢 PAIRING CODE Section - ENHANCED */
+        /* 🔢 PAIRING CODE Section - ENHANCED: Manual-only */
         .pairing-container {
             text-align: center;
         }
 
-        /* 📱 Phone Input Section - NEW */
+        /* 📱 Phone Input Section - REQUIRED */
         .pairing-input-section {
             margin: 15px 0;
             text-align: center;
@@ -401,18 +402,22 @@
             box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
         }
 
+        .pairing-phone-input:invalid {
+            border-color: var(--warning-red);
+        }
+
         .pairing-phone-input::placeholder {
-            color: rgba(0, 255, 0, 0.5);
+            color: rgba(255, 0, 0, 0.5);
         }
 
         .input-hint {
             display: block;
             font-size: 0.8rem;
-            color: rgba(0, 255, 255, 0.7);
+            color: rgba(255, 0, 0, 0.7);
             margin-top: 5px;
         }
 
-        /* 🔢 8-digit Pairing Code Display - UPDATED */
+        /* 🔢 8-digit Pairing Code Display - UPDATED: Manual-only */
         .pairing-code {
             font-family: 'Courier New', monospace;
             font-size: 2.5rem;
@@ -430,6 +435,7 @@
             color: var(--matrix-bright);
             border-color: var(--matrix-green);
             background: rgba(0, 255, 0, 0.1);
+            animation: pulse 2s infinite;
         }
 
         .pairing-code-inactive {
@@ -749,32 +755,22 @@
             border: 1px solid var(--warning-yellow);
             color: var(--warning-yellow);
         }
-
-        /* 🆕 Pairing Code Active States */
-        .pairing-code-active {
-            animation: pulse 2s infinite;
-        }
-
-        .pairing-section-active {
-            background: rgba(0, 255, 255, 0.05);
-            border: 2px solid var(--accent-blue);
-        }
     </style>
 
     <!-- 🚀 JavaScript -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="js/scanner.js"></script>
     
-    <!-- 🌌 Scanner Initialization - UPDATED: Enhanced Pairing Codes -->
+    <!-- 🌌 Scanner Initialization - UPDATED: Manual-only Pairing Codes -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🦅 SAVAGE Scanner Interface Loaded - Enhanced Pairing Mode');
+            console.log('🦅 SAVAGE Scanner Interface Loaded - Manual-only Pairing Mode');
             
-            // Update UI for enhanced mode
-            updateUIForEnhancedMode();
+            // Update UI for manual-only mode
+            updateUIForManualMode();
             
-            // Initialize enhanced pairing functionality
-            initializeEnhancedPairing();
+            // Initialize manual-only pairing functionality
+            initializeManualPairing();
             
             // Initialize QR regeneration handling
             initializeQRRegeneration();
@@ -795,35 +791,60 @@
             setupKeyboardHelp();
             
             // Show welcome message
-            showNotification('🦅 SAVAGE SCANNER READY - Enhanced 8-digit pairing codes active', 'success');
+            showNotification('🦅 SAVAGE SCANNER READY - Manual-only pairing codes active', 'success');
         });
 
-        function updateUIForEnhancedMode() {
-            // Update status messages for enhanced mode
-            document.getElementById('statusMessage').textContent = 'Enhanced 8-digit pairing codes active';
+        function updateUIForManualMode() {
+            // Update status messages for manual-only mode
+            document.getElementById('statusMessage').textContent = 'Manual-only pairing codes active';
             document.getElementById('qrStatus').textContent = 'QR codes auto-refresh every 30 seconds';
-            document.getElementById('pairingStatus').textContent = '8-digit pairing codes ready';
-            document.getElementById('platformDisplay').textContent = 'Render Deployment - Enhanced Mode';
+            document.getElementById('pairingStatus').textContent = 'Phone number required for pairing codes';
+            document.getElementById('platformInfo').textContent = 'Render Deployment - Manual Mode';
             
-            // Show enhanced mode indicators
+            // Show manual-only mode indicators
             const connectionState = document.getElementById('connectionState');
-            connectionState.textContent = 'Enhanced Pairing Active';
-            connectionState.className = 'session-value status-connected';
+            connectionState.textContent = 'Manual Pairing Active';
+            connectionState.className = 'session-value status-waiting';
         }
 
-        function initializeEnhancedPairing() {
+        function initializeManualPairing() {
             const generatePairingBtn = document.getElementById('generatePairingBtn');
             const copyPairingBtn = document.getElementById('copyPairingBtn');
             const phoneInput = document.getElementById('pairingPhoneInput');
             const refreshQRBtn = document.getElementById('refreshQRBtn');
             const downloadQRBtn = document.getElementById('downloadQRBtn');
 
-            // Generate Pairing Code Button - NEW
+            // Phone Input Validation - NEW: Required field
+            phoneInput.addEventListener('input', function() {
+                const phoneNumber = phoneInput.value.trim();
+                const isValid = phoneNumber && isValidPhoneNumber(phoneNumber);
+                
+                // Update generate button state based on phone validation
+                generatePairingBtn.disabled = !isValid;
+                
+                if (phoneNumber && !isValid) {
+                    phoneInput.style.borderColor = 'var(--warning-red)';
+                    showNotification('❌ Invalid phone number format', 'error');
+                } else if (isValid) {
+                    phoneInput.style.borderColor = 'var(--matrix-green)';
+                } else {
+                    phoneInput.style.borderColor = 'var(--accent-blue)';
+                }
+            });
+
+            // Generate Pairing Code Button - UPDATED: Manual-only
             generatePairingBtn.addEventListener('click', function() {
                 const phoneNumber = phoneInput.value.trim();
                 
-                if (phoneNumber && !isValidPhoneNumber(phoneNumber)) {
+                if (!phoneNumber) {
+                    showNotification('❌ Phone number is REQUIRED for pairing codes', 'error');
+                    phoneInput.focus();
+                    return;
+                }
+
+                if (!isValidPhoneNumber(phoneNumber)) {
                     showNotification('❌ Please enter a valid phone number (e.g., +1234567890)', 'error');
+                    phoneInput.focus();
                     return;
                 }
 
@@ -833,11 +854,12 @@
                     generatePairingBtn.disabled = true;
 
                     window.savageScanner.socket.emit('generate_pairing_code', {
-                        phoneNumber: phoneNumber || null,
-                        timestamp: Date.now()
+                        phoneNumber: phoneNumber,
+                        timestamp: Date.now(),
+                        isManual: true
                     });
                     
-                    showNotification('🔢 Generating 8-digit pairing code...', 'info');
+                    showNotification('🔢 Generating manual 8-digit pairing code...', 'info');
                     
                     // Reset button after 3 seconds
                     setTimeout(() => {
@@ -856,7 +878,7 @@
                 }
             });
 
-            // Copy Pairing Code Button - UPDATED
+            // Copy Pairing Code Button - UPDATED: Manual-only
             copyPairingBtn.addEventListener('click', function() {
                 const pairingCode = document.getElementById('pairingCode').textContent;
                 if (pairingCode && pairingCode !== '--------') {
@@ -866,7 +888,7 @@
                         showNotification('❌ Failed to copy pairing code', 'error');
                     });
                 } else {
-                    showNotification('⚠️ No pairing code available yet', 'warning');
+                    showNotification('⚠️ No pairing code available. Generate one first.', 'warning');
                 }
             });
 
@@ -941,7 +963,7 @@
         }
 
         function isValidPhoneNumber(phone) {
-            if (!phone || phone.trim() === '') return true;
+            if (!phone || phone.trim() === '') return false;
             const phoneRegex = /^\+?[1-9]\d{1,14}$/;
             return phoneRegex.test(phone.replace(/\s/g, ''));
         }
@@ -1008,7 +1030,7 @@
                     document.getElementById('copyPairingBtn').click();
                 }
 
-                // NEW: Ctrl+Shift+G to generate pairing code
+                // Ctrl+Shift+G to generate pairing code
                 if (e.ctrlKey && e.shiftKey && e.key === 'G') {
                     e.preventDefault();
                     document.getElementById('generatePairingBtn').click();
