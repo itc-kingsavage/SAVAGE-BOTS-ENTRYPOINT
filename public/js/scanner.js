@@ -2,7 +2,7 @@
  * 🦅 SAVAGE BOTS SCANNER - Frontend Scanner Logic
  * Real-time WhatsApp QR code, pairing codes, and bot status management
  * Hacker-themed interface with WebSocket connections
- * UPDATED: Automatic QR Generation (No Phone Number Required)
+ * UPDATED: QR Auto-regeneration + Enhanced Pairing Code Section
  */
 
 class SavageScanner {
@@ -15,13 +15,14 @@ class SavageScanner {
         this.maxReconnectAttempts = 5;
         this.reconnectDelay = 3000;
         
-        // Scanner state - UPDATED for automatic mode
+        // Scanner state - UPDATED with pairing code enhancements
         this.scannerState = {
             qrCode: null,
             pairingCode: null,
             status: 'disconnected',
             phoneNumber: null,
-            connectionType: 'automatic', // automatic or manual
+            connectionType: 'automatic',
+            pairingPhoneNumber: '', // NEW: For manual pairing
             bots: {
                 'SAVAGE-X': { status: 'offline', lastSeen: null },
                 'DE-UKNOWN-BOT': { status: 'offline', lastSeen: null },
@@ -29,14 +30,22 @@ class SavageScanner {
             }
         };
 
+        // QR regeneration tracking - NEW
+        this.qrRegeneration = {
+            lastGenerated: null,
+            timeoutId: null,
+            regenerationTime: 30000, // 30 seconds
+            isRegenerating: false
+        };
+
         this.init();
     }
 
     /**
-     * 🎯 Initialize scanner
+     * 🎯 Initialize scanner - UPDATED for pairing codes
      */
     init() {
-        console.log('🦅 Initializing SAVAGE BOTS SCANNER - Automatic QR Mode...');
+        console.log('🦅 Initializing SAVAGE BOTS SCANNER - Enhanced Pairing Mode...');
         
         this.checkAuthentication();
         this.initializeSocketIO();
@@ -49,9 +58,9 @@ class SavageScanner {
             window.savageMatrix.setIntensity(0.8);
         }
 
-        // Show automatic mode notification
+        // Show enhanced mode notification
         setTimeout(() => {
-            this.showNotification('🦅 SAVAGE SCANNER READY - QR codes generate automatically', 'success');
+            this.showNotification('🦅 SAVAGE SCANNER READY - Enhanced pairing codes active', 'success');
         }, 1000);
     }
 
@@ -79,7 +88,7 @@ class SavageScanner {
                 timeout: 10000,
                 reconnectionAttempts: 5,
                 reconnectionDelay: 3000,
-                transports: ['websocket', 'polling'] // ✅ Better for Render
+                transports: ['websocket', 'polling']
             });
             
             this.setupSocketEvents();
@@ -91,7 +100,7 @@ class SavageScanner {
     }
 
     /**
-     * 🔌 Setup Socket.IO event handlers - UPDATED for automatic mode
+     * 🔌 Setup Socket.IO event handlers - UPDATED for pairing codes
      */
     setupSocketEvents() {
         // Connection events
@@ -99,7 +108,7 @@ class SavageScanner {
         this.socket.on('disconnect', () => this.handleSocketDisconnect());
         this.socket.on('connect_error', (error) => this.handleSocketError(error));
         
-        // Scanner events - UPDATED for automatic QR
+        // Scanner events - UPDATED with pairing code events
         this.socket.on('scanner_status', (data) => this.handleScannerStatus(data));
         this.socket.on('qr_data', (data) => this.handleQRData(data));
         this.socket.on('ready', (data) => this.handleReady(data));
@@ -111,22 +120,26 @@ class SavageScanner {
         this.socket.on('logout_success', (data) => this.handleLogoutSuccess(data));
         this.socket.on('qr_refreshed', (data) => this.handleQRRefreshed(data));
         
+        // NEW: Pairing code events
+        this.socket.on('pairing_code_generated', (data) => this.handlePairingCodeGenerated(data));
+        this.socket.on('pairing_code_error', (data) => this.handlePairingCodeError(data));
+        
         // Error events
         this.socket.on('error', (data) => this.handleError(data));
     }
 
     /**
-     * 🔌 Handle Socket.IO connection - UPDATED for automatic mode
+     * 🔌 Handle Socket.IO connection - UPDATED for pairing codes
      */
     handleSocketConnect() {
         console.log('✅ Socket.IO connected to SAVAGE SCANNER');
         this.isConnected = true;
         this.reconnectAttempts = 0;
         
-        this.updateStatus('connected', 'Connected to scanner server - Automatic QR mode active');
-        this.showNotification('Connected to scanner server - QR codes generate automatically', 'success');
+        this.updateStatus('connected', 'Connected to scanner server - Enhanced pairing active');
+        this.showNotification('Connected to scanner server - Pairing codes enhanced', 'success');
         
-        // Request current status - QR will generate automatically
+        // Request current status
         this.socket.emit('get_status');
     }
 
@@ -138,6 +151,11 @@ class SavageScanner {
         this.isConnected = false;
         this.updateStatus('disconnected', 'Disconnected from server');
         this.showNotification('Disconnected from server', 'warning');
+        
+        // Clear QR regeneration timeout
+        if (this.qrRegeneration.timeoutId) {
+            clearTimeout(this.qrRegeneration.timeoutId);
+        }
     }
 
     /**
@@ -150,7 +168,7 @@ class SavageScanner {
     }
 
     /**
-     * 📨 Handle scanner status - UPDATED for automatic mode
+     * 📨 Handle scanner status - UPDATED for pairing codes
      */
     handleScannerStatus(data) {
         console.log('📊 Scanner status:', data);
@@ -160,20 +178,22 @@ class SavageScanner {
             this.updateSessionInfo(data);
         }
         
-        // Update UI for automatic mode
-        this.updateUIForAutomaticMode();
+        // Update pairing code if available
+        if (data.pairingCode) {
+            this.updatePairingCode(data.pairingCode);
+        }
         
-        // If we have QR data, request it
-        if (data.hasQr) {
-            this.showNotification('QR code available - loading...', 'info');
+        // Setup QR regeneration if QR is active
+        if (data.hasQr && !this.qrRegeneration.isRegenerating) {
+            this.setupQRRegeneration();
         }
     }
 
     /**
-     * 📱 Handle QR code data - UPDATED for automatic generation
+     * 📱 Handle QR code data - UPDATED with regeneration tracking
      */
     handleQRData(data) {
-        console.log('📱 QR Data received (Automatic):', data);
+        console.log('📱 QR Data received:', data);
         
         this.scannerState.qrCode = data.qrImage;
         this.scannerState.pairingCode = data.pairingCode;
@@ -187,27 +207,49 @@ class SavageScanner {
         this.updateQRCode(data.qrImage, data.qrRaw);
         this.updatePairingCode(data.pairingCode);
         
-        // Show appropriate status based on auto-generation
-        if (data.autoGenerated) {
-            this.updateStatus('qr_ready', 'QR code automatically generated - Ready for scanning');
-            this.showNotification('✅ QR code automatically generated! Scan with WhatsApp', 'success');
-        } else {
-            this.updateStatus('qr_ready', 'QR code ready - Scan with WhatsApp');
-        }
+        // Setup QR regeneration
+        this.setupQRRegeneration();
         
-        console.log('📱 QR Code automatically generated:', data.pairingCode);
+        // Show status
+        this.updateStatus('qr_ready', 'QR code ready - Scan with WhatsApp');
+        this.showNotification('✅ QR code generated! Auto-refresh in 30 seconds', 'success');
+        
+        console.log('📱 QR Code generated:', data.pairingCode);
     }
 
     /**
-     * 🔄 Handle QR refresh response
+     * 🔄 Handle QR refresh response - UPDATED with regeneration
      */
     handleQRRefreshed(data) {
         if (data.success) {
             this.showNotification('🔄 QR code refresh initiated', 'info');
             this.updateStatus('waiting_qr', 'Generating new QR code...');
+            
+            // Reset regeneration timer
+            this.setupQRRegeneration();
         } else {
             this.showNotification('❌ Failed to refresh QR code', 'error');
         }
+    }
+
+    /**
+     * 🆕 Handle pairing code generation response
+     */
+    handlePairingCodeGenerated(data) {
+        if (data.success && data.pairingCode) {
+            this.scannerState.pairingCode = data.pairingCode;
+            this.updatePairingCode(data.pairingCode);
+            
+            this.showNotification(`✅ 8-digit pairing code generated for ${data.phoneNumber || 'manual pairing'}`, 'success');
+            this.updateStatus('pairing_ready', '8-digit pairing code ready');
+        }
+    }
+
+    /**
+     * 🆕 Handle pairing code error
+     */
+    handlePairingCodeError(data) {
+        this.showNotification(`❌ Pairing code error: ${data.error}`, 'error');
     }
 
     /**
@@ -232,7 +274,7 @@ class SavageScanner {
     }
 
     /**
-     * 🚀 Handle scanner ready state - UPDATED for automatic mode
+     * 🚀 Handle scanner ready state
      */
     handleReady(data) {
         this.sessionId = data.sessionId;
@@ -245,16 +287,22 @@ class SavageScanner {
         
         this.showNotification('✅ WhatsApp connected successfully! Session active.', 'success');
         
+        // Clear QR regeneration when connected
+        if (this.qrRegeneration.timeoutId) {
+            clearTimeout(this.qrRegeneration.timeoutId);
+            this.qrRegeneration.isRegenerating = false;
+        }
+        
         // Update bot statuses
         this.updateBotStatus('SAVAGE-X', 'online');
         this.updateBotStatus('DE-UKNOWN-BOT', 'online');
         this.updateBotStatus('QUEEN-RIXIE', 'online');
         
-        console.log('🚀 Scanner ready (Automatic):', data.sessionId);
+        console.log('🚀 Scanner ready:', data.sessionId);
     }
 
     /**
-     * 📊 Handle status updates - UPDATED for automatic mode
+     * 📊 Handle status updates
      */
     handleStatusUpdate(data) {
         this.updateStatus(data.status, data.message);
@@ -267,7 +315,7 @@ class SavageScanner {
         if (data.status === 'syncing') {
             this.showNotification('🔄 Syncing with WhatsApp...', 'warning');
         } else if (data.status === 'waiting_qr') {
-            this.showNotification('⏳ Generating QR code automatically...', 'info');
+            this.showNotification('⏳ Generating QR code...', 'info');
         } else if (data.status === 'qr_ready') {
             this.showNotification('✅ QR code ready for scanning', 'success');
         }
@@ -313,7 +361,7 @@ class SavageScanner {
     }
 
     /**
-     * 🆕 Handle client-side logout cleanup - UPDATED for automatic mode
+     * 🆕 Handle client-side logout cleanup
      */
     handleClientLogout() {
         // Clear local state
@@ -323,6 +371,13 @@ class SavageScanner {
         this.scannerState.qrCode = null;
         this.scannerState.pairingCode = null;
         this.scannerState.status = 'disconnected';
+        this.scannerState.pairingPhoneNumber = '';
+        
+        // Clear QR regeneration
+        if (this.qrRegeneration.timeoutId) {
+            clearTimeout(this.qrRegeneration.timeoutId);
+            this.qrRegeneration.isRegenerating = false;
+        }
         
         // Clear localStorage
         localStorage.removeItem('savage_session_token');
@@ -333,18 +388,14 @@ class SavageScanner {
         this.updatePhoneNumberDisplay(null);
         this.updatePairingCode(null);
         this.updateQRCode(null, null);
+        this.resetPairingInput(); // NEW
         
         // Reset bot statuses
         this.updateBotStatus('SAVAGE-X', 'offline');
         this.updateBotStatus('DE-UKNOWN-BOT', 'offline');
         this.updateBotStatus('QUEEN-RIXIE', 'offline');
         
-        // Show automatic mode message
-        setTimeout(() => {
-            this.showNotification('🔄 QR code will generate automatically when reconnected', 'info');
-        }, 1000);
-        
-        console.log('✅ Client logout completed - Automatic mode ready');
+        console.log('✅ Client logout completed');
     }
 
     /**
@@ -360,16 +411,19 @@ class SavageScanner {
     }
 
     /**
-     * 🎨 Update QR code display - IMPROVED FOR AUTOMATIC MODE
+     * 🎨 Update QR code display - UPDATED with regeneration info
      */
     updateQRCode(qrImage, qrRaw = null) {
         const qrElement = document.getElementById('qrCode');
         if (!qrElement) return;
 
         if (qrImage) {
-            // Display QR image
+            // Display QR image with regeneration info
             qrElement.innerHTML = `
                 <img src="${qrImage}" alt="WhatsApp QR Code" style="max-width: 100%; height: auto; border: 2px solid var(--matrix-green); border-radius: 8px;">
+                <div class="qr-regeneration-info">
+                    <small>🔄 Auto-refresh in 30 seconds</small>
+                </div>
             `;
             
             // Show download button
@@ -389,10 +443,10 @@ class SavageScanner {
                 </div>
             `;
         } else {
-            // Show loading state for automatic generation
+            // Show loading state
             qrElement.innerHTML = `
                 <div class="loading-spinner"></div>
-                <p class="loading-text">Generating QR code automatically...</p>
+                <p class="loading-text">Generating QR code...</p>
             `;
         }
         
@@ -400,16 +454,42 @@ class SavageScanner {
         const qrStatus = document.getElementById('qrStatus');
         if (qrStatus) {
             if (qrImage) {
-                qrStatus.textContent = 'QR Code Ready - Scan with WhatsApp';
+                qrStatus.textContent = 'QR Code Ready - Auto-refresh active';
                 qrStatus.className = 'status-connected';
             } else if (qrRaw) {
                 qrStatus.textContent = 'Manual Pairing Code Ready';
                 qrStatus.className = 'status-waiting';
             } else {
-                qrStatus.textContent = 'QR code generating automatically...';
+                qrStatus.textContent = 'QR code generating...';
                 qrStatus.className = 'status-syncing';
             }
         }
+    }
+
+    /**
+     * 🆕 Setup QR code auto-regeneration
+     */
+    setupQRRegeneration() {
+        // Clear existing timeout
+        if (this.qrRegeneration.timeoutId) {
+            clearTimeout(this.qrRegeneration.timeoutId);
+        }
+        
+        // Set new timeout
+        this.qrRegeneration.timeoutId = setTimeout(() => {
+            if (this.isConnected && this.scannerState.qrCode && this.scannerState.status !== 'connected') {
+                this.qrRegeneration.isRegenerating = true;
+                this.showNotification('🔄 Auto-refreshing QR code...', 'info');
+                this.refreshQR();
+                
+                // Reset flag after refresh
+                setTimeout(() => {
+                    this.qrRegeneration.isRegenerating = false;
+                }, 2000);
+            }
+        }, this.qrRegeneration.regenerationTime);
+        
+        this.qrRegeneration.lastGenerated = new Date();
     }
 
     /**
@@ -424,34 +504,36 @@ class SavageScanner {
     }
 
     /**
-     * 🔢 Update pairing code display - UPDATED for automatic mode
+     * 🔢 Update pairing code display - ENHANCED for 8-digit codes
      */
     updatePairingCode(pairingCode) {
         const pairingElement = document.getElementById('pairingCode');
         if (pairingElement) {
-            pairingElement.textContent = pairingCode || '------';
+            pairingElement.textContent = pairingCode || '--------';
+            pairingElement.className = pairingCode ? 'pairing-code-active' : 'pairing-code-inactive';
         }
         
         const pairingStatus = document.getElementById('pairingStatus');
         if (pairingStatus) {
             if (pairingCode) {
-                pairingStatus.textContent = 'Pairing Code Ready - Use with WhatsApp';
+                pairingStatus.textContent = '8-digit Pairing Code Ready';
                 pairingStatus.className = 'status-connected';
             } else {
-                pairingStatus.textContent = 'Pairing code generates automatically with QR';
-                pairingStatus.className = 'status-waiting';
+                pairingStatus.textContent = 'Pairing code not generated';
+                pairingStatus.className = 'status-disconnected';
             }
         }
 
         // Update copy button
         const copyBtn = document.getElementById('copyPairingBtn');
         if (copyBtn) {
+            copyBtn.disabled = !pairingCode;
             copyBtn.onclick = () => this.copyPairingCode(pairingCode);
         }
     }
 
     /**
-     * 📱 Update phone number display - UPDATED for automatic detection
+     * 📱 Update phone number display
      */
     updatePhoneNumberDisplay(phoneNumber) {
         const phoneDisplay = document.getElementById('phoneNumberDisplay');
@@ -463,7 +545,52 @@ class SavageScanner {
     }
 
     /**
-     * 📊 Update connection status - UPDATED for automatic mode
+     * 🆕 Reset pairing input fields
+     */
+    resetPairingInput() {
+        const phoneInput = document.getElementById('pairingPhoneInput');
+        if (phoneInput) {
+            phoneInput.value = '';
+        }
+        this.scannerState.pairingPhoneNumber = '';
+    }
+
+    /**
+     * 🆕 Generate 8-digit pairing code
+     */
+    generatePairingCode() {
+        const phoneInput = document.getElementById('pairingPhoneInput');
+        const phoneNumber = phoneInput ? phoneInput.value.trim() : '';
+        
+        if (phoneNumber && !this.isValidPhoneNumber(phoneNumber)) {
+            this.showNotification('❌ Please enter a valid phone number', 'error');
+            return;
+        }
+        
+        if (this.socket && this.isConnected) {
+            this.socket.emit('generate_pairing_code', {
+                phoneNumber: phoneNumber || null,
+                timestamp: Date.now()
+            });
+            
+            this.showNotification('🔄 Generating 8-digit pairing code...', 'info');
+            this.updateStatus('syncing', 'Generating pairing code...');
+        } else {
+            this.showNotification('❌ Not connected to server', 'error');
+        }
+    }
+
+    /**
+     * 🆕 Validate phone number format
+     */
+    isValidPhoneNumber(phone) {
+        // Basic international phone validation
+        const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+        return phoneRegex.test(phone.replace(/\s/g, ''));
+    }
+
+    /**
+     * 📊 Update connection status
      */
     updateStatus(status, message) {
         this.scannerState.status = status;
@@ -491,7 +618,7 @@ class SavageScanner {
     }
 
     /**
-     * 🎨 Format status for display - UPDATED for automatic mode
+     * 🎨 Format status for display
      */
     formatStatus(status) {
         const statusMap = {
@@ -587,23 +714,6 @@ class SavageScanner {
     }
 
     /**
-     * 🎨 Update UI for automatic mode - NEW METHOD
-     */
-    updateUIForAutomaticMode() {
-        // Update connection type display
-        const connectionType = document.querySelector('.connection-value.status-connected');
-        if (connectionType) {
-            connectionType.textContent = 'AUTOMATIC QR';
-        }
-        
-        // Update platform info for Render
-        const platformDisplay = document.getElementById('platformDisplay');
-        if (platformDisplay) {
-            platformDisplay.textContent = 'Render Deployment - Automatic Mode';
-        }
-    }
-
-    /**
      * 🎭 Show password interface
      */
     showPasswordInterface() {
@@ -616,10 +726,7 @@ class SavageScanner {
      */
     showScannerInterface() {
         // We're already on the scanner page, just ensure everything is visible
-        console.log('🦅 Scanner interface active - Automatic QR Mode');
-        
-        // Update UI for automatic mode
-        this.updateUIForAutomaticMode();
+        console.log('🦅 Scanner interface active - Enhanced Pairing Mode');
         
         // Request initial data
         if (this.socket && this.isConnected) {
@@ -672,7 +779,7 @@ class SavageScanner {
     }
 
     /**
-     * 🎛️ Setup event listeners - UPDATED for automatic mode
+     * 🎛️ Setup event listeners - UPDATED for pairing codes
      */
     setupEventListeners() {
         // Logout button
@@ -698,8 +805,24 @@ class SavageScanner {
         if (copyPairingBtn) {
             copyPairingBtn.addEventListener('click', () => {
                 const pairingCode = document.getElementById('pairingCode').textContent;
-                if (pairingCode && pairingCode !== '------') {
+                if (pairingCode && pairingCode !== '--------') {
                     this.copyPairingCode(pairingCode);
+                }
+            });
+        }
+
+        // NEW: Generate pairing code button
+        const generatePairingBtn = document.getElementById('generatePairingBtn');
+        if (generatePairingBtn) {
+            generatePairingBtn.addEventListener('click', () => this.generatePairingCode());
+        }
+
+        // NEW: Phone input enter key support
+        const phoneInput = document.getElementById('pairingPhoneInput');
+        if (phoneInput) {
+            phoneInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.generatePairingCode();
                 }
             });
         }
@@ -719,7 +842,7 @@ class SavageScanner {
     }
 
     /**
-     * 🚪 Handle logout - UPDATED for automatic mode
+     * 🚪 Handle logout
      */
     handleLogout() {
         if (this.socket && this.isConnected) {
@@ -731,13 +854,16 @@ class SavageScanner {
     }
 
     /**
-     * 🔄 Refresh QR code - UPDATED for automatic mode
+     * 🔄 Refresh QR code - UPDATED with regeneration
      */
     refreshQR() {
         if (this.socket) {
             this.socket.emit('refresh_qr');
             this.showNotification('🔄 Generating new QR code...', 'warning');
             this.updateStatus('waiting_qr', 'Refreshing QR code...');
+            
+            // Reset regeneration timer
+            this.setupQRRegeneration();
         }
     }
 
@@ -763,14 +889,14 @@ class SavageScanner {
      * 📋 Copy pairing code to clipboard
      */
     async copyPairingCode(pairingCode) {
-        if (!pairingCode || pairingCode === '------') {
+        if (!pairingCode || pairingCode === '--------') {
             this.showNotification('No pairing code available', 'error');
             return;
         }
         
         try {
             await navigator.clipboard.writeText(pairingCode);
-            this.showNotification('Pairing code copied to clipboard!', 'success');
+            this.showNotification('8-digit pairing code copied to clipboard!', 'success');
         } catch (error) {
             console.error('❌ Failed to copy pairing code:', error);
             this.showNotification('Failed to copy pairing code', 'error');
@@ -778,7 +904,7 @@ class SavageScanner {
     }
 
     /**
-     * ⌨️ Handle keyboard shortcuts - UPDATED for automatic mode
+     * ⌨️ Handle keyboard shortcuts - UPDATED for pairing codes
      */
     handleKeyboardShortcuts(e) {
         // Ctrl+Shift+L - Logout
@@ -803,9 +929,15 @@ class SavageScanner {
         if (e.ctrlKey && e.shiftKey && e.key === 'Q') {
             e.preventDefault();
             const pairingCode = document.getElementById('pairingCode').textContent;
-            if (pairingCode && pairingCode !== '------') {
+            if (pairingCode && pairingCode !== '--------') {
                 this.copyPairingCode(pairingCode);
             }
+        }
+
+        // NEW: Ctrl+Shift+G - Generate pairing code
+        if (e.ctrlKey && e.shiftKey && e.key === 'G') {
+            e.preventDefault();
+            this.generatePairingCode();
         }
 
         // Ctrl+Shift+D - Download QR
@@ -885,7 +1017,7 @@ class SavageScanner {
     }
 
     /**
-     * 🏥 Get scanner health status - UPDATED for automatic mode
+     * 🏥 Get scanner health status - UPDATED for pairing codes
      */
     getHealthStatus() {
         return {
@@ -896,9 +1028,14 @@ class SavageScanner {
             bots: this.scannerState.bots,
             sessionId: this.sessionId,
             phoneNumber: this.scannerState.phoneNumber,
+            pairingPhoneNumber: this.scannerState.pairingPhoneNumber,
             hasQR: !!this.scannerState.qrCode,
             hasPairingCode: !!this.scannerState.pairingCode,
-            reconnectAttempts: this.reconnectAttempts
+            reconnectAttempts: this.reconnectAttempts,
+            qrRegeneration: {
+                active: !!this.qrRegeneration.timeoutId,
+                lastGenerated: this.qrRegeneration.lastGenerated
+            }
         };
     }
 
@@ -908,6 +1045,11 @@ class SavageScanner {
     destroy() {
         if (this.socket) {
             this.socket.disconnect();
+        }
+        
+        // Clear QR regeneration
+        if (this.qrRegeneration.timeoutId) {
+            clearTimeout(this.qrRegeneration.timeoutId);
         }
         
         localStorage.removeItem('savage_session_token');
