@@ -2,7 +2,7 @@
  * 🦅 SAVAGE BOTS SCANNER - Main Server File
  * Multi-bot WhatsApp scanner with hacker theme
  * COMPATIBLE with Baileys v6+
- * UPDATED: QR Persistence + Enhanced 8-digit Pairing Code System
+ * UPDATED: Manual-Only Pairing Codes + QR Regeneration
  */
 
 const express = require('express');
@@ -32,7 +32,7 @@ class SavageBotsScanner {
         this.client = null;
         this.isAuthenticated = false;
         this.currentQR = null;
-        this.currentPairingCode = null;
+        this.currentPairingCode = null; // ✅ CHANGED: Starts as null (no auto-generation)
         this.sessionId = null;
         this.connectedBots = new Set();
         this.whatsappAvailable = false;
@@ -40,14 +40,14 @@ class SavageBotsScanner {
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
         
-        // ✅ ENHANCED: QR Code Persistence & Regeneration
+        // QR Code Persistence & Regeneration
         this.qrTimeout = null;
         this.qrRegenerationInterval = null;
-        this.qrExpiryTime = WHATSAPP_CONFIG.QR.TIMEOUT; // 2 minutes from config
-        this.qrRegenerationIntervalMs = WHATSAPP_CONFIG.QR.REGENERATION_INTERVAL; // 30 seconds
+        this.qrExpiryTime = WHATSAPP_CONFIG.QR.TIMEOUT;
+        this.qrRegenerationIntervalMs = WHATSAPP_CONFIG.QR.REGENERATION_INTERVAL;
         
-        // ✅ ENHANCED: 8-digit Pairing Code System
-        this.pairingCodes = new Map(); // Store pairing codes with metadata
+        // ✅ CHANGED: Manual-Only Pairing Code System
+        this.pairingCodes = new Map(); // Store manual pairing codes only
         this.activePairingCode = null;
         
         this.initializeScanner();
@@ -155,10 +155,10 @@ class SavageBotsScanner {
                 this.sessionId = null;
                 this.currentPhoneNumber = null;
                 this.currentQR = null;
-                this.currentPairingCode = null;
+                this.currentPairingCode = null; // ✅ CHANGED: Already null
                 this.activePairingCode = null;
                 
-                // ✅ ENHANCED: Clear pairing codes
+                // Clear pairing codes
                 this.pairingCodes.clear();
                 
                 // Clear WhatsApp connection
@@ -167,7 +167,7 @@ class SavageBotsScanner {
                     this.client = null;
                 }
                 
-                // ✅ ENHANCED: Clear QR timeouts
+                // Clear QR timeouts
                 this.clearQRTimeouts();
                 
                 // Reset reconnect attempts
@@ -230,7 +230,7 @@ class SavageBotsScanner {
                 connectedBots: Array.from(this.connectedBots),
                 currentPhoneNumber: this.currentPhoneNumber,
                 hasQr: !!this.currentQR,
-                currentPairingCode: this.currentPairingCode,
+                currentPairingCode: this.currentPairingCode, // ✅ CHANGED: Will be null
                 pairingCodesActive: this.pairingCodes.size,
                 timestamp: new Date()
             });
@@ -248,11 +248,11 @@ class SavageBotsScanner {
                 this.sessionId = null;
                 this.currentPhoneNumber = null;
                 this.currentQR = null;
-                this.currentPairingCode = null;
+                this.currentPairingCode = null; // ✅ CHANGED: Clear pairing code
                 this.activePairingCode = null;
                 this.reconnectAttempts = 0;
                 
-                // ✅ ENHANCED: Clear existing timeouts
+                // Clear existing timeouts
                 this.clearQRTimeouts();
                 
                 // Restart WhatsApp connection
@@ -266,12 +266,20 @@ class SavageBotsScanner {
             }
         });
 
-        // ✅ ENHANCED: Generate 8-digit pairing code for specific number
+        // ✅ CHANGED: Generate 8-digit pairing code ONLY with phone number
         this.app.post('/generate-pairing-code', (req, res) => {
             try {
                 const { phoneNumber } = req.body;
                 
-                if (phoneNumber && !this.isValidPhoneNumber(phoneNumber)) {
+                // ✅ CHANGED: Phone number is REQUIRED
+                if (!phoneNumber || phoneNumber.trim() === '') {
+                    return res.json({ 
+                        success: false, 
+                        error: 'Phone number is required to generate pairing code' 
+                    });
+                }
+
+                if (!this.isValidPhoneNumber(phoneNumber)) {
                     return res.json({ 
                         success: false, 
                         error: 'Invalid phone number format. Use international format: +1234567890' 
@@ -283,30 +291,35 @@ class SavageBotsScanner {
                 
                 // Store pairing code with metadata
                 this.pairingCodes.set(pairingCode, {
-                    phoneNumber: phoneNumber || 'auto-generated',
+                    phoneNumber: phoneNumber,
                     generatedAt: Date.now(),
-                    expiresAt: Date.now() + WHATSAPP_CONFIG.PAIRING.TIMEOUT, // 5 minutes from config
+                    expiresAt: Date.now() + WHATSAPP_CONFIG.PAIRING.TIMEOUT,
                     used: false,
-                    isManual: !!phoneNumber
+                    isManual: true // ✅ CHANGED: Always manual now
                 });
 
-                console.log(`🔢 [SCANNER] ${phoneNumber ? 'Manual' : 'Auto'} 8-digit pairing code generated: ${pairingCode}`);
+                // Set as current pairing code
+                this.currentPairingCode = pairingCode;
+                this.activePairingCode = pairingCode;
+
+                console.log(`🔢 [SCANNER] Manual 8-digit pairing code generated for ${phoneNumber}: ${pairingCode}`);
 
                 // Broadcast to all clients
                 this.io.emit('pairing_code_generated', {
                     success: true,
                     pairingCode: pairingCode,
-                    phoneNumber: phoneNumber || 'Auto-generated',
-                    message: `8-digit pairing code ${phoneNumber ? 'for ' + phoneNumber : 'generated'}`,
+                    phoneNumber: phoneNumber,
+                    message: `8-digit pairing code generated for ${phoneNumber}`,
                     timestamp: new Date(),
-                    isManual: !!phoneNumber
+                    isManual: true,
+                    length: WHATSAPP_CONFIG.PAIRING.LENGTH
                 });
 
                 res.json({
                     success: true,
                     pairingCode: pairingCode,
                     phoneNumber: phoneNumber,
-                    message: `8-digit pairing code generated${phoneNumber ? ' for ' + phoneNumber : ''}`,
+                    message: `8-digit pairing code generated for ${phoneNumber}`,
                     length: WHATSAPP_CONFIG.PAIRING.LENGTH
                 });
 
@@ -316,7 +329,7 @@ class SavageBotsScanner {
             }
         });
 
-        // ✅ ADDED: Get pairing code status
+        // Get pairing code status
         this.app.get('/pairing-status', (req, res) => {
             const activeCodes = Array.from(this.pairingCodes.entries()).map(([code, data]) => ({
                 code,
@@ -343,7 +356,7 @@ class SavageBotsScanner {
      * ✅ ADDED: Validate phone number format
      */
     isValidPhoneNumber(phone) {
-        if (!phone || phone.trim() === '') return true; // Allow empty for auto-generation
+        if (!phone || phone.trim() === '') return false; // ✅ CHANGED: No longer allow empty
         const phoneRegex = /^\+?[1-9]\d{1,14}$/;
         return phoneRegex.test(phone.replace(/\s/g, ''));
     }
@@ -360,10 +373,10 @@ class SavageBotsScanner {
             this.sessionId = null;
             this.currentPhoneNumber = null;
             this.whatsappAvailable = false;
-            this.currentPairingCode = null;
+            this.currentPairingCode = null; // ✅ CHANGED: Starts as null
             this.activePairingCode = null;
             
-            // ✅ ENHANCED: Clear previous QR timeouts
+            // Clear previous QR timeouts
             this.clearQRTimeouts();
             
             // ✅ COMPATIBLE Baileys v6+ import with proper logger
@@ -441,12 +454,12 @@ class SavageBotsScanner {
             
             console.log(`📡 [WHATSAPP] Connection update: ${connection}`);
             
-            // ✅ ENHANCED: Auto-generate QR code when available (like web.whatsapp.com)
+            // Auto-generate QR code when available (like web.whatsapp.com)
             if (qr) {
                 console.log('📱 [SCANNER] QR Code received - Auto-generating...');
                 this.reconnectAttempts = 0; // Reset on new QR
                 
-                // ✅ ENHANCED: Clear previous QR timeouts before generating new QR
+                // Clear previous QR timeouts before generating new QR
                 this.clearQRTimeouts();
                 
                 this.handleQRCode(qr).catch(console.error);
@@ -486,7 +499,7 @@ class SavageBotsScanner {
                 this.isAuthenticated = true;
                 this.whatsappAvailable = true;
                 
-                // ✅ ENHANCED: Clear QR timeouts when connected
+                // Clear QR timeouts when connected
                 this.clearQRTimeouts();
                 
                 this.io.emit('status_update', {
@@ -561,18 +574,18 @@ class SavageBotsScanner {
     }
 
     /**
-     * 🔢 Handle QR code generation - ✅ ENHANCED: Auto-generate QR codes with persistence
+     * 🔢 Handle QR code generation - ✅ CHANGED: No automatic pairing codes
      */
     async handleQRCode(qr) {
         try {
-            console.log('📱 [SCANNER] Generating QR code automatically...');
+            console.log('📱 [SCANNER] Generating QR code...');
             
             // Clear previous authentication state
             this.isAuthenticated = false;
             this.sessionId = null;
             this.currentPhoneNumber = null;
             
-            // ✅ ENHANCED: Better QR generation with high quality
+            // QR generation with high quality
             let qrImage = null;
             try {
                 qrImage = await qrcode.toDataURL(qr, {
@@ -583,19 +596,19 @@ class SavageBotsScanner {
                 });
             } catch (qrError) {
                 console.warn('⚠️ [SCANNER] QR image generation failed, using raw data:', qrError.message);
-                // Fallback to simple QR
                 qrImage = await qrcode.toDataURL(qr);
             }
             
             this.currentQR = qrImage;
-            this.currentPairingCode = this.generateEightDigitPairingCode();
-            this.activePairingCode = this.currentPairingCode;
+            // ✅ CHANGED: No automatic pairing code generation
+            // this.currentPairingCode = this.generateEightDigitPairingCode();
+            this.activePairingCode = null;
             
-            // ✅ ENHANCED: Auto-generated QR data (like web.whatsapp.com)
+            // QR data without pairing code
             const qrData = {
                 qrImage: qrImage,
                 qrRaw: qr,
-                pairingCode: this.currentPairingCode,
+                pairingCode: null, // ✅ CHANGED: No pairing code
                 timestamp: Date.now(),
                 autoGenerated: true,
                 message: 'Scan this QR code with your phone to connect',
@@ -603,39 +616,32 @@ class SavageBotsScanner {
                 pairingCodeLength: WHATSAPP_CONFIG.PAIRING.LENGTH
             };
             
-            // Store pairing code
-            this.pairingCodes.set(this.currentPairingCode, {
-                phoneNumber: 'auto-generated',
-                generatedAt: Date.now(),
-                expiresAt: Date.now() + WHATSAPP_CONFIG.PAIRING.TIMEOUT,
-                used: false,
-                isManual: false
-            });
+            // ✅ CHANGED: No pairing code storage for QR
             
             // Broadcast to all connected clients
             this.io.emit('qr_data', qrData);
             
-            console.log(`🔢 [SCANNER] QR Code automatically generated - 8-digit pairing code: ${this.currentPairingCode}`);
+            console.log(`📱 [SCANNER] QR Code generated - Manual pairing codes only`);
             
             // Update status
             this.io.emit('status_update', {
                 status: 'qr_ready',
-                message: 'QR code automatically generated - Ready for scanning',
+                message: 'QR code ready for scanning - Pairing codes available manually',
                 hasQr: true,
-                pairingCode: this.currentPairingCode
+                pairingCode: null // ✅ CHANGED: No pairing code
             });
 
-            // ✅ ENHANCED: QR Code Auto-Regeneration with Notification
+            // QR Code Auto-Regeneration
             this.setupQRAutoRegeneration();
 
         } catch (error) {
             console.error('❌ [SCANNER] QR code handling failed:', error);
             
-            // ✅ FIXED: Emergency fallback - send raw QR data
+            // Emergency fallback
             this.io.emit('qr_data', {
                 qrImage: null,
                 qrRaw: qr,
-                pairingCode: this.currentPairingCode,
+                pairingCode: null, // ✅ CHANGED: No pairing code
                 error: 'QR generation failed - Use manual QR scanning',
                 timestamp: Date.now()
             });
@@ -643,7 +649,7 @@ class SavageBotsScanner {
     }
 
     /**
-     * ✅ ENHANCED: Setup QR Code Auto-Regeneration
+     * ✅ Setup QR Code Auto-Regeneration
      */
     setupQRAutoRegeneration() {
         // Clear any existing timeouts
@@ -700,7 +706,7 @@ class SavageBotsScanner {
     }
 
     /**
-     * ✅ ENHANCED: Clear QR Timeouts
+     * ✅ Clear QR Timeouts
      */
     clearQRTimeouts() {
         if (this.qrTimeout) {
@@ -714,7 +720,7 @@ class SavageBotsScanner {
     }
 
     /**
-     * ✅ ENHANCED: Generate 8-digit Pairing Code
+     * ✅ Generate 8-digit Pairing Code
      */
     generateEightDigitPairingCode() {
         const crypto = require('crypto');
@@ -724,7 +730,7 @@ class SavageBotsScanner {
     }
 
     /**
-     * 🚀 Handle ready state - ✅ ENHANCED: Automatic phone number detection
+     * 🚀 Handle ready state - ✅ CHANGED: No pairing code cleanup needed
      */
     async handleReady() {
         try {
@@ -734,7 +740,7 @@ class SavageBotsScanner {
             const actualPhoneNumber = this.client.user?.id?.replace(/:\d+$/, '') || 'unknown';
             this.currentPhoneNumber = actualPhoneNumber;
             
-            // ✅ ENHANCED: Syncing phase
+            // Syncing phase
             this.io.emit('status_update', {
                 status: 'syncing',
                 message: 'Syncing with WhatsApp...',
@@ -749,7 +755,7 @@ class SavageBotsScanner {
             
             // Clear QR data and timeouts
             this.currentQR = null;
-            this.currentPairingCode = null;
+            this.currentPairingCode = null; // ✅ CHANGED: Already null
             this.activePairingCode = null;
             this.clearQRTimeouts();
             
@@ -768,7 +774,7 @@ class SavageBotsScanner {
             
             console.log(`🆔 [SCANNER] Session ID generated: ${this.sessionId}`);
             console.log(`📱 [SCANNER] Connected as: ${actualPhoneNumber}`);
-            console.log(`🔢 [SCANNER] 8-digit pairing codes system: ACTIVE`);
+            console.log(`🔢 [SCANNER] Manual 8-digit pairing codes system: ACTIVE`);
             
         } catch (error) {
             console.error('❌ [SCANNER] Ready state handling failed:', error);
@@ -835,7 +841,7 @@ class SavageBotsScanner {
     }
 
     /**
-     * 🔌 Setup WebSocket communication - ✅ ENHANCED: 8-digit pairing code system
+     * 🔌 Setup WebSocket communication - ✅ CHANGED: Manual-only pairing codes
      */
     setupWebSocket() {
         this.io.on('connection', (socket) => {
@@ -849,7 +855,7 @@ class SavageBotsScanner {
                 hasQr: !!this.currentQR,
                 sessionId: this.sessionId,
                 currentPhoneNumber: this.currentPhoneNumber,
-                currentPairingCode: this.currentPairingCode,
+                currentPairingCode: this.currentPairingCode, // ✅ CHANGED: Will be null
                 pairingCodesActive: this.pairingCodes.size,
                 pairingCodeLength: WHATSAPP_CONFIG.PAIRING.LENGTH
             };
@@ -868,13 +874,13 @@ class SavageBotsScanner {
                 // Send QR code if available
                 socket.emit('qr_data', {
                     qrImage: this.currentQR,
-                    pairingCode: this.currentPairingCode,
+                    pairingCode: null, // ✅ CHANGED: No pairing code
                     timestamp: Date.now(),
                     pairingCodeLength: WHATSAPP_CONFIG.PAIRING.LENGTH
                 });
             }
 
-            // ✅ ENHANCED: Refresh QR code request
+            // Refresh QR code request
             socket.on('refresh_qr', () => {
                 console.log(`🔄 [SCANNER] QR refresh requested by: ${socket.id}`);
                 
@@ -887,11 +893,11 @@ class SavageBotsScanner {
                 this.sessionId = null;
                 this.currentPhoneNumber = null;
                 this.currentQR = null;
-                this.currentPairingCode = null;
+                this.currentPairingCode = null; // ✅ CHANGED: Clear pairing code
                 this.activePairingCode = null;
                 this.reconnectAttempts = 0;
                 
-                // ✅ ENHANCED: Clear QR timeouts
+                // Clear QR timeouts
                 this.clearQRTimeouts();
                 
                 // Restart WhatsApp connection
@@ -905,12 +911,20 @@ class SavageBotsScanner {
                 });
             });
 
-            // ✅ ENHANCED: Generate 8-digit pairing code for specific number
+            // ✅ CHANGED: Generate 8-digit pairing code ONLY when phone number provided
             socket.on('generate_pairing_code', (data) => {
                 try {
                     const { phoneNumber } = data;
                     
-                    if (phoneNumber && !this.isValidPhoneNumber(phoneNumber)) {
+                    // ✅ CHANGED: Phone number is REQUIRED
+                    if (!phoneNumber || phoneNumber.trim() === '') {
+                        socket.emit('pairing_code_error', {
+                            error: 'Phone number is required to generate pairing code'
+                        });
+                        return;
+                    }
+
+                    if (!this.isValidPhoneNumber(phoneNumber)) {
                         socket.emit('pairing_code_error', {
                             error: 'Invalid phone number format. Use international format: +1234567890'
                         });
@@ -922,23 +936,27 @@ class SavageBotsScanner {
                     
                     // Store pairing code with metadata
                     this.pairingCodes.set(pairingCode, {
-                        phoneNumber: phoneNumber || 'auto-generated',
+                        phoneNumber: phoneNumber,
                         generatedAt: Date.now(),
                         expiresAt: Date.now() + WHATSAPP_CONFIG.PAIRING.TIMEOUT,
                         used: false,
-                        isManual: !!phoneNumber
+                        isManual: true // ✅ CHANGED: Always manual now
                     });
 
-                    console.log(`🔢 [SCANNER] ${phoneNumber ? 'Manual' : 'Auto'} 8-digit pairing code generated: ${pairingCode}`);
+                    // Set as current pairing code
+                    this.currentPairingCode = pairingCode;
+                    this.activePairingCode = pairingCode;
+
+                    console.log(`🔢 [SCANNER] Manual 8-digit pairing code generated for ${phoneNumber}: ${pairingCode}`);
 
                     // Broadcast to all clients
                     this.io.emit('pairing_code_generated', {
                         success: true,
                         pairingCode: pairingCode,
-                        phoneNumber: phoneNumber || 'Auto-generated',
-                        message: `8-digit pairing code ${phoneNumber ? 'for ' + phoneNumber : 'generated'}`,
+                        phoneNumber: phoneNumber,
+                        message: `8-digit pairing code generated for ${phoneNumber}`,
                         timestamp: new Date(),
-                        isManual: !!phoneNumber,
+                        isManual: true,
                         length: WHATSAPP_CONFIG.PAIRING.LENGTH
                     });
 
@@ -946,7 +964,7 @@ class SavageBotsScanner {
                         success: true,
                         pairingCode: pairingCode,
                         phoneNumber: phoneNumber,
-                        message: `8-digit pairing code generated${phoneNumber ? ' for ' + phoneNumber : ''}`
+                        message: `8-digit pairing code generated for ${phoneNumber}`
                     });
 
                 } catch (error) {
@@ -957,7 +975,7 @@ class SavageBotsScanner {
                 }
             });
 
-            // ✅ ENHANCED: Handle logout request
+            // Handle logout request
             socket.on('logout_request', async () => {
                 try {
                     console.log(`🚪 [SCANNER] Logout requested by: ${socket.id}`);
@@ -972,7 +990,7 @@ class SavageBotsScanner {
                     this.connectedBots.clear();
                     this.reconnectAttempts = 0;
                     
-                    // ✅ ENHANCED: Clear QR timeouts and pairing codes
+                    // Clear QR timeouts and pairing codes
                     this.clearQRTimeouts();
                     this.pairingCodes.clear();
                     
@@ -1084,7 +1102,7 @@ class SavageBotsScanner {
                     connectedBots: Array.from(this.connectedBots),
                     currentPhoneNumber: this.currentPhoneNumber,
                     hasQr: !!this.currentQR,
-                    currentPairingCode: this.currentPairingCode,
+                    currentPairingCode: this.currentPairingCode, // ✅ CHANGED: Manual only
                     pairingCodesActive: this.pairingCodes.size,
                     pairingCodeLength: WHATSAPP_CONFIG.PAIRING.LENGTH,
                     timestamp: new Date()
@@ -1116,7 +1134,7 @@ class SavageBotsScanner {
             console.log(`🔐 Password protected: http://${host}:${port}/password`);
             console.log(`📱 Scanner interface: http://${host}:${port}/scanner`);
             console.log(`🤖 Bots supported: SAVAGE-X, DE-UKNOWN-BOT, QUEEN-RIXIE`);
-            console.log(`🔢 Pairing codes: ${WHATSAPP_CONFIG.PAIRING.LENGTH}-digit enhanced system`);
+            console.log(`🔢 Pairing codes: ${WHATSAPP_CONFIG.PAIRING.LENGTH}-digit manual-only system`);
             console.log(`🔄 QR regeneration: ${this.qrRegenerationIntervalMs}ms intervals`);
             console.log(`🦅 ${SCANNER_IDENTITY.MOTTO}`);
             console.log('🦅 ============================================================');
@@ -1129,7 +1147,7 @@ class SavageBotsScanner {
     async shutdown() {
         console.log('🛑 [SCANNER] Shutting down gracefully...');
         
-        // ✅ ENHANCED: Clear timeouts and pairing codes
+        // Clear timeouts and pairing codes
         this.clearQRTimeouts();
         this.pairingCodes.clear();
         
