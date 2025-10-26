@@ -10,9 +10,10 @@
     "test": "jest --verbose",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "build": "npm run build:clean && npm run build:copy",
+    "build": "npm run build:clean && npm run build:copy && npm run build:functions",
     "build:clean": "rm -rf dist/ && mkdir dist",
     "build:copy": "cp -r config/ auth/ utils/ public/ dist/",
+    "build:functions": "cd bots/functions && npm install && cd ../..",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
     "security:audit": "npm audit --audit-level=high",
@@ -22,10 +23,14 @@
     "db:backup": "node scripts/backup-database.js",
     "deploy:render": "npm run build && npm run security:audit",
     "deploy:heroku": "npm run build && npm run security:audit",
-    "bot:savage-x": "node bots/savage-x-connector.js",
-    "bot:de-unknown": "node bots/de-unknown-connector.js",
-    "bot:queen-rixie": "node bots/queen-rixie-connector.js",
+    "functions:setup": "git submodule update --init --recursive",
+    "functions:update": "cd bots/functions && git pull origin main && npm install && cd ../..",
+    "functions:install": "npm run functions:setup && cd bots/functions && npm install && cd ../..",
+    "bot:savage-x": "node -e \"require('./bots/functions').savageX.connect()\"",
+    "bot:de-unknown": "node -e \"require('./bots/functions').deUnknown.connect()\"",
+    "bot:queen-rixie": "node -e \"require('./bots/functions').queenRixie.connect()\"",
     "bot:all": "concurrently \"npm run bot:savage-x\" \"npm run bot:de-unknown\" \"npm run bot:queen-rixie\"",
+    "bot:test": "node -e \"require('./bots/functions').test()\"",
     "session:cleanup": "node scripts/cleanup-sessions.js",
     "session:stats": "node scripts/session-stats.js",
     "health:check": "node scripts/health-check.js",
@@ -33,7 +38,8 @@
     "docs:serve": "serve docs/",
     "production": "NODE_ENV=production node savage-scanner.js",
     "docker:build": "docker build -t savage-bots-scanner .",
-    "docker:run": "docker run -p 3000:3000 --env-file .env savage-bots-scanner"
+    "docker:run": "docker run -p 3000:3000 --env-file .env savage-bots-scanner",
+    "postinstall": "npm run functions:install"
   },
   "keywords": [
     "whatsapp",
@@ -48,7 +54,9 @@
     "websocket",
     "mongodb",
     "render",
-    "heroku"
+    "heroku",
+    "bot-functions",
+    "command-handler"
   ],
   "author": {
     "name": "SAVAGE BOTS TECHNOLOGY",
@@ -96,7 +104,11 @@
     "axios": "^1.5.0",
     "form-data": "^4.0.0",
     "multer": "^1.4.5-lts.1",
-    "libphonenumber-js": "^1.10.46"
+    "libphonenumber-js": "^1.10.46",
+    "youtube-dl-exec": "^2.0.0",
+    "node-cron": "^3.0.2",
+    "cheerio": "^1.0.0-rc.12",
+    "fluent-ffmpeg": "^2.1.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.1",
@@ -132,6 +144,7 @@
     "auth/",
     "utils/",
     "public/",
+    "bots/functions/",
     "savage-scanner.js",
     "README.md",
     "LICENSE"
@@ -152,6 +165,7 @@
       "auth/**/*.js",
       "config/**/*.js",
       "utils/**/*.js",
+      "bots/functions/**/*.js",
       "!**/node_modules/**",
       "!**/vendor/**"
     ],
@@ -167,6 +181,7 @@
       "config/",
       "auth/",
       "utils/",
+      "bots/functions/",
       "savage-scanner.js"
     ],
     "ext": "js,json",
