@@ -2,7 +2,7 @@
  * 🦅 SAVAGE BOTS SCANNER - Advanced Generators System
  * BMW-style session IDs, pairing codes, and secure random generation
  * Military-grade random generation for maximum security
- * UPDATED: 8-digit Pairing Codes + QR Regeneration Support
+ * UPDATED: Manual-Only 8-digit Pairing Codes + QR Regeneration Support
  */
 
 const crypto = require('crypto');
@@ -65,8 +65,9 @@ class SavageGenerators {
     init() {
         console.log('🎲 [GENERATORS] Savage Generators System Initialized');
         console.log(`🔧 [GENERATORS] Session ID Format: ${this.config.sessionId.prefix}-[8char]-[timestamp]-[8char]`);
-        console.log(`🔢 [GENERATORS] Pairing Code Length: ${this.config.pairingCode.length} digits`); // ✅ UPDATED: 8 digits
+        console.log(`🔢 [GENERATORS] Pairing Code Length: ${this.config.pairingCode.length} digits (MANUAL-ONLY)`); // ✅ UPDATED: Manual-only
         console.log(`🔄 [GENERATORS] QR Regeneration: ${this.config.qr.regenerationInterval}ms intervals`); // ✅ ADDED
+        console.log(`📱 [GENERATORS] Pairing Mode: MANUAL-ONLY (Phone number required)`); // ✅ ADDED
         
         this.startCleanupInterval();
         this.startQRRegenerationMonitor(); // ✅ ADDED: QR regeneration monitor
@@ -109,10 +110,16 @@ class SavageGenerators {
     }
 
     /**
-     * 🔢 Generate 8-digit pairing code - UPDATED
+     * 🔢 Generate 8-digit pairing code - UPDATED FOR MANUAL-ONLY
      */
     generatePairingCode(phoneNumber = null) {
         try {
+            // ✅ CHANGED: Phone number is now REQUIRED for manual-only mode
+            if (!phoneNumber || phoneNumber.trim() === '') {
+                console.warn('⚠️ [GENERATORS] Phone number required for manual pairing code generation');
+                return null; // ✅ CHANGED: Return null instead of generating auto code
+            }
+
             let code;
             let attempts = 0;
             const maxAttempts = 10;
@@ -139,16 +146,16 @@ class SavageGenerators {
                 attempts: 0,
                 maxAttempts: this.config.pairingCode.maxAttempts,
                 phoneNumber: phoneNumber, // ✅ ADDED: Track phone number
-                isManual: !!phoneNumber // ✅ ADDED: Manual generation flag
+                isManual: true // ✅ CHANGED: Always manual now
             });
 
-            console.log(`🔢 [GENERATORS] ${phoneNumber ? 'Manual' : 'Auto'} 8-digit pairing code generated: ${code}`);
+            console.log(`🔢 [GENERATORS] Manual 8-digit pairing code generated for ${phoneNumber}: ${code}`);
             return code;
 
         } catch (error) {
             console.error('❌ [GENERATORS] Pairing code generation failed:', error);
-            // ✅ FALLBACK: Simple random generation (8 digits)
-            return Math.floor(10000000 + Math.random() * 90000000).toString();
+            // ✅ CHANGED: Return null on error for manual-only mode
+            return null;
         }
     }
 
@@ -267,7 +274,7 @@ class SavageGenerators {
     }
 
     /**
-     * ✅ Validate pairing code - UPDATED for 8 digits
+     * ✅ Validate pairing code - UPDATED for 8 digits and manual-only
      */
     validatePairingCode(code) {
         if (typeof code !== 'string') return false;
@@ -279,6 +286,12 @@ class SavageGenerators {
         // Check if code exists and is not expired
         const record = this.generationHistory.get(`pairing_${code}`);
         if (!record) return false;
+
+        // ✅ CHANGED: Check if it's a manual code
+        if (!record.data.isManual) {
+            console.warn('⚠️ [GENERATORS] Automatic pairing codes are disabled');
+            return false;
+        }
 
         if (record.data.expiresAt < Date.now()) {
             this.generationHistory.delete(`pairing_${code}`);
@@ -336,6 +349,7 @@ class SavageGenerators {
                 connectionType: 'automatic',
                 platform: 'render',
                 pairingCodeLength: this.config.pairingCode.length, // ✅ ADDED: 8-digit info
+                pairingMode: 'MANUAL-ONLY', // ✅ ADDED: Manual-only mode
                 generatedAt: new Date().toISOString()
             };
         } catch (error) {
@@ -353,6 +367,7 @@ class SavageGenerators {
                 connectionType: 'automatic',
                 platform: 'render',
                 pairingCodeLength: this.config.pairingCode.length,
+                pairingMode: 'MANUAL-ONLY',
                 generatedAt: new Date().toISOString()
             };
         }
@@ -371,7 +386,8 @@ class SavageGenerators {
                 multiTarget: true,
                 automaticQR: true,
                 enhancedPairing: true, // ✅ ADDED: Enhanced pairing support
-                qrRegeneration: true // ✅ ADDED: QR regeneration support
+                qrRegeneration: true, // ✅ ADDED: QR regeneration support
+                manualPairingOnly: true // ✅ ADDED: Manual-only mode
             },
             'DE-UKNOWN-BOT': {
                 mysteryMode: true,
@@ -381,7 +397,8 @@ class SavageGenerators {
                 encryption: true,
                 automaticQR: true,
                 enhancedPairing: true, // ✅ ADDED: Enhanced pairing support
-                qrRegeneration: true // ✅ ADDED: QR regeneration support
+                qrRegeneration: true, // ✅ ADDED: QR regeneration support
+                manualPairingOnly: true // ✅ ADDED: Manual-only mode
             },
             'QUEEN-RIXIE': {
                 royalProtocol: true,
@@ -392,7 +409,8 @@ class SavageGenerators {
                 royalGuard: true,
                 automaticQR: true,
                 enhancedPairing: true, // ✅ ADDED: Enhanced pairing support
-                qrRegeneration: true // ✅ ADDED: QR regeneration support
+                qrRegeneration: true, // ✅ ADDED: QR regeneration support
+                manualPairingOnly: true // ✅ ADDED: Manual-only mode
             }
         };
 
@@ -402,7 +420,8 @@ class SavageGenerators {
             encryption: true,
             automaticQR: true,
             enhancedPairing: true,
-            qrRegeneration: true
+            qrRegeneration: true,
+            manualPairingOnly: true // ✅ ADDED: Manual-only mode
         };
     }
 
@@ -637,12 +656,14 @@ class SavageGenerators {
                 },
                 pairingCodes: {
                     length: this.config.pairingCode.length,
-                    expiry: this.config.pairingCode.expiry
+                    expiry: this.config.pairingCode.expiry,
+                    mode: 'MANUAL-ONLY' // ✅ ADDED: Manual-only mode
                 },
                 config: {
                     sessionIdFormat: this.config.sessionId.prefix,
                     pairingCodeLength: this.config.pairingCode.length,
-                    minEntropy: this.config.security.minEntropy
+                    minEntropy: this.config.security.minEntropy,
+                    pairingMode: 'MANUAL-ONLY' // ✅ ADDED: Manual-only mode
                 },
                 platform: 'render',
                 timestamp: new Date()
@@ -668,9 +689,9 @@ class SavageGenerators {
             const testSessionId = this.generateSessionId('TEST');
             const sessionIdValid = this.validateSessionId(testSessionId);
             
-            // Test pairing code generation (8-digit now)
-            const testPairingCode = this.generatePairingCode();
-            const pairingCodeValid = this.validatePairingCode(testPairingCode);
+            // Test manual pairing code generation (8-digit now with phone number)
+            const testPairingCode = this.generatePairingCode('+1234567890');
+            const pairingCodeValid = testPairingCode && this.validatePairingCode(testPairingCode);
 
             // Test QR regeneration tracking
             const qrData = this.generateQRData();
@@ -683,6 +704,7 @@ class SavageGenerators {
                     pairingCodeGeneration: pairingCodeValid,
                     qrRegenerationTracking: qrTrackingValid,
                     pairingCodeLength: this.config.pairingCode.length,
+                    pairingMode: 'MANUAL-ONLY', // ✅ ADDED: Manual-only mode
                     platform: 'render'
                 },
                 stats: this.getStats(),
@@ -705,7 +727,9 @@ class SavageGenerators {
         try {
             const qrId = crypto.randomBytes(8).toString('hex');
             const expiresAt = Date.now() + this.config.qr.timeout;
-            const pairingCode = this.generatePairingCode(phoneNumber);
+            
+            // ✅ CHANGED: No automatic pairing codes - only generate if phone number provided
+            const pairingCode = phoneNumber ? this.generatePairingCode(phoneNumber) : null;
             
             // Track QR regeneration
             this.qrRegenerationTracker.set(qrId, {
@@ -713,18 +737,20 @@ class SavageGenerators {
                 regenerationCount: 1,
                 pairingCode: pairingCode,
                 phoneNumber: phoneNumber,
-                expiresAt: expiresAt
+                expiresAt: expiresAt,
+                isManual: !!phoneNumber // ✅ ADDED: Manual flag
             });
 
             return {
                 qrId,
                 expiresAt,
                 generatedAt: Date.now(),
-                pairingCode: pairingCode,
+                pairingCode: pairingCode, // ✅ CHANGED: Will be null for QR codes
                 automatic: true,
                 phoneNumber: phoneNumber,
                 isManual: !!phoneNumber, // ✅ ADDED: Manual generation flag
-                length: this.config.pairingCode.length // ✅ ADDED: Code length info
+                length: this.config.pairingCode.length, // ✅ ADDED: Code length info
+                pairingMode: 'MANUAL-ONLY' // ✅ ADDED: Manual-only mode
             };
         } catch (error) {
             console.error('❌ [GENERATORS] QR data generation failed:', error);
@@ -732,11 +758,12 @@ class SavageGenerators {
                 qrId: 'fallback-qr',
                 expiresAt: Date.now() + this.config.qr.timeout,
                 generatedAt: Date.now(),
-                pairingCode: this.generatePairingCode(phoneNumber),
+                pairingCode: null, // ✅ CHANGED: No fallback pairing code
                 automatic: true,
                 phoneNumber: phoneNumber,
                 isManual: !!phoneNumber,
-                length: this.config.pairingCode.length
+                length: this.config.pairingCode.length,
+                pairingMode: 'MANUAL-ONLY'
             };
         }
     }
@@ -783,12 +810,22 @@ class SavageGenerators {
                 nextRegeneration: data.lastRegenerated + this.config.qr.regenerationInterval,
                 pairingCode: data.pairingCode,
                 phoneNumber: data.phoneNumber,
+                isManual: data.isManual, // ✅ ADDED: Manual flag
                 isActive: Date.now() - data.lastRegenerated < this.config.qr.regenerationInterval * 2
             };
         } catch (error) {
             console.error('❌ [GENERATORS] QR regeneration status check failed:', error);
             return null;
         }
+    }
+
+    /**
+     * ✅ ADDED: Validate phone number format for manual pairing
+     */
+    isValidPhoneNumber(phone) {
+        if (!phone || phone.trim() === '') return false;
+        const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+        return phoneRegex.test(phone.replace(/\s/g, ''));
     }
 }
 
@@ -799,7 +836,7 @@ module.exports = savageGenerators;
 
 // 🚀 Quick utility functions
 module.exports.generateSessionId = (botName, platform) => savageGenerators.generateSessionId(botName, platform);
-module.exports.generatePairingCode = (phoneNumber) => savageGenerators.generatePairingCode(phoneNumber); // ✅ UPDATED: Phone number parameter
+module.exports.generatePairingCode = (phoneNumber) => savageGenerators.generatePairingCode(phoneNumber); // ✅ UPDATED: Phone number parameter (REQUIRED)
 module.exports.generateAuthToken = (botName, sessionId, purpose) => savageGenerators.generateAuthToken(botName, sessionId, purpose);
 module.exports.validateSessionId = (sessionId) => savageGenerators.validateSessionId(sessionId);
 module.exports.validatePairingCode = (code) => savageGenerators.validatePairingCode(code);
@@ -807,13 +844,14 @@ module.exports.generateBotConfig = (botName) => savageGenerators.generateBotConf
 module.exports.generateQRData = (phoneNumber) => savageGenerators.generateQRData(phoneNumber); // ✅ UPDATED: Phone number parameter
 module.exports.trackQRRegeneration = (qrId) => savageGenerators.trackQRRegeneration(qrId); // ✅ ADDED: QR regeneration tracking
 module.exports.getQRRegenerationStatus = (qrId) => savageGenerators.getQRRegenerationStatus(qrId); // ✅ ADDED: QR status
+module.exports.isValidPhoneNumber = (phone) => savageGenerators.isValidPhoneNumber(phone); // ✅ ADDED: Phone validation
 
 // 📝 Example usage
 if (require.main === module) {
     // Test the generators system
     const test = async () => {
         try {
-            console.log('🧪 Testing Savage Generators System...\n');
+            console.log('🧪 Testing Savage Generators System (MANUAL-ONLY MODE)...\n');
 
             // Test session ID generation
             console.log('🆔 Testing Session ID Generation...');
@@ -822,24 +860,25 @@ if (require.main === module) {
             console.log('✅ Valid:', savageGenerators.validateSessionId(sessionId));
             console.log('✅ Entropy:', savageGenerators.calculateEntropy(sessionId).toFixed(2), 'bits\n');
 
-            // Test 8-digit pairing code generation
-            console.log('🔢 Testing 8-digit Pairing Code Generation...');
-            const pairingCode = savageGenerators.generatePairingCode();
-            console.log('✅ Generated:', pairingCode);
-            console.log('✅ Length:', pairingCode.length, 'digits');
-            console.log('✅ Valid:', savageGenerators.validatePairingCode(pairingCode), '\n');
-
-            // Test manual pairing code with phone number
-            console.log('📱 Testing Manual Pairing Code Generation...');
+            // Test manual 8-digit pairing code generation with phone number
+            console.log('🔢 Testing Manual 8-digit Pairing Code Generation...');
             const manualPairingCode = savageGenerators.generatePairingCode('+1234567890');
             console.log('✅ Manual code generated:', manualPairingCode);
-            console.log('✅ Length:', manualPairingCode.length, 'digits\n');
+            console.log('✅ Length:', manualPairingCode ? manualPairingCode.length : 'N/A', 'digits');
+            console.log('✅ Valid:', manualPairingCode ? savageGenerators.validatePairingCode(manualPairingCode) : false, '\n');
 
-            // Test QR data generation
-            console.log('📱 Testing QR Data Generation...');
+            // Test manual pairing code without phone number (should fail)
+            console.log('❌ Testing Pairing Code Without Phone Number (Should Fail)...');
+            const failedPairingCode = savageGenerators.generatePairingCode();
+            console.log('✅ Result:', failedPairingCode === null ? 'Failed as expected (Manual-only mode)' : 'ERROR: Should have failed');
+            console.log('✅ Manual-only mode enforced:', failedPairingCode === null, '\n');
+
+            // Test QR data generation (no pairing code for QR)
+            console.log('📱 Testing QR Data Generation (No Auto Pairing Codes)...');
             const qrData = savageGenerators.generateQRData();
             console.log('✅ Generated QR data with pairing code:', qrData.pairingCode);
             console.log('✅ Automatic mode:', qrData.automatic);
+            console.log('✅ Manual-only mode:', qrData.pairingMode);
             console.log('✅ Code length:', qrData.length, 'digits\n');
 
             // Test QR regeneration tracking
@@ -855,9 +894,10 @@ if (require.main === module) {
             const health = savageGenerators.healthCheck();
             console.log('✅ Status:', health.status);
             console.log('✅ Platform:', health.tests.platform);
-            console.log('✅ Pairing Code Length:', health.tests.pairingCodeLength, 'digits\n');
+            console.log('✅ Pairing Code Length:', health.tests.pairingCodeLength, 'digits');
+            console.log('✅ Pairing Mode:', health.tests.pairingMode, '\n');
 
-            console.log('🎯 All tests completed successfully!');
+            console.log('🎯 All manual-only tests completed successfully!');
 
         } catch (error) {
             console.error('❌ Test failed:', error);
