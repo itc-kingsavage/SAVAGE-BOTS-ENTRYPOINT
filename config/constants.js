@@ -1,7 +1,7 @@
 /**
  * 🦅 SAVAGE BOTS SCANNER - Constants & Configuration
  * Centralized configuration for SAVAGE BOTS ecosystem
- * UPDATED: QR Auto-regeneration + 8-digit Pairing Codes
+ * UPDATED: Manual-Only 8-digit Pairing Codes + QR Auto-regeneration
  */
 
 const path = require('path');
@@ -11,7 +11,7 @@ const path = require('path');
 // =============================================================================
 const SCANNER_IDENTITY = {
     NAME: 'SAVAGE BOTS SCANNER',
-    VERSION: '2.1.0', // ✅ UPDATED: Enhanced pairing codes
+    VERSION: '2.1.0', // ✅ UPDATED: Manual-only pairing codes
     CODE_NAME: 'PROJECT-XMD',
     DEVELOPER: 'SAVAGE BOTS TECHNOLOGY',
     MOTTO: 'When ordinary isn\'t an option',
@@ -142,15 +142,16 @@ const WHATSAPP_CONFIG = {
         CONNECTION_TIMEOUT: 30000
     },
     
-    // Pairing code settings - ✅ UPDATED: 8-digit codes
+    // Pairing code settings - ✅ UPDATED: Manual-only 8-digit codes
     PAIRING: {
         LENGTH: 8, // ✅ CHANGED: 8-digit codes (was 6)
         CHARSET: '0123456789',
         TIMEOUT: 300000, // 5 minutes
         MAX_ATTEMPTS: 3,
         ALLOW_MANUAL_GENERATION: true, // ✅ ADDED: Manual generation
-        REQUIRE_PHONE_NUMBER: false, // ✅ ADDED: Optional phone input
-        AUTO_GENERATE_WITH_QR: true // ✅ ADDED: Generate with QR
+        REQUIRE_PHONE_NUMBER: true, // ✅ CHANGED: Phone number REQUIRED (was false)
+        AUTO_GENERATE_WITH_QR: false, // ✅ CHANGED: No auto-generation with QR (was true)
+        MODE: 'MANUAL-ONLY' // ✅ ADDED: Manual-only mode
     }
 };
 
@@ -291,7 +292,8 @@ const UI_CONFIG = {
         WARNING: '#FFFF00',    // Yellow
         ERROR: '#FF0000',      // Red
         SUCCESS: '#00FF00',    // Green
-        PAIRING_CODE: '#00FFFF' // ✅ ADDED: Pairing code color
+        PAIRING_CODE: '#00FFFF', // ✅ ADDED: Pairing code color
+        MANUAL_MODE: '#FFA500' // ✅ ADDED: Manual mode indicator
     },
     
     // Hacker theme elements
@@ -310,7 +312,7 @@ const UI_CONFIG = {
         }
     },
     
-    // Scanner interface - ✅ UPDATED: Enhanced pairing section
+    // Scanner interface - ✅ UPDATED: Manual-only pairing section
     SCANNER: {
         QR_SIZE: 400, // ✅ INCREASED: Better visibility
         STATUS_REFRESH: 5000, // 5 seconds
@@ -324,27 +326,30 @@ const UI_CONFIG = {
             CONNECTING: '#FFFF00',
             QR_READY: '#00FFFF',
             SYNCING: '#FF00FF',
-            PAIRING_READY: '#00FFFF' // ✅ ADDED: Pairing ready color
+            PAIRING_READY: '#00FFFF', // ✅ ADDED: Pairing ready color
+            MANUAL_MODE: '#FFA500' // ✅ ADDED: Manual mode indicator
         },
         
-        // ✅ ADDED: Pairing code section styling
+        // ✅ UPDATED: Manual-only pairing section styling
         PAIRING_SECTION: {
-            BACKGROUND: 'rgba(0, 255, 255, 0.1)',
-            BORDER: '1px solid #00FFFF',
-            HEADER_COLOR: '#00FFFF',
+            BACKGROUND: 'rgba(255, 165, 0, 0.1)', // ✅ CHANGED: Orange for manual mode
+            BORDER: '2px solid #FFA500', // ✅ CHANGED: Orange border
+            HEADER_COLOR: '#FFA500', // ✅ CHANGED: Orange header
             CODE_FONT_SIZE: '24px',
-            CODE_COLOR: '#00FFFF'
+            CODE_COLOR: '#FFA500', // ✅ CHANGED: Orange code
+            REQUIRED_FIELD: '#FF0000', // ✅ ADDED: Required field styling
+            MANUAL_INDICATOR: 'MANUAL-ONLY' // ✅ ADDED: Manual mode text
         }
     }
 };
 
 // =============================================================================
-// 📧 MESSAGES & CONTENT - ✅ UPDATED: Pairing code messages
+// 📧 MESSAGES & CONTENT - ✅ UPDATED: Manual-only pairing messages
 // =============================================================================
 const MESSAGES = {
     // Connection flow messages
     CONNECTION: {
-        INITIALIZING: '🦅 SAVAGE BOTS SCANNER - Initializing...',
+        INITIALIZING: '🦅 SAVAGE BOTS SCANNER - Initializing (Manual-Only Mode)...',
         WAITING_QR: '📱 Waiting for QR code generation...',
         QR_READY: '✅ QR code ready - Scan with your phone',
         CONNECTING: '🔗 Connecting to WhatsApp...',
@@ -356,7 +361,7 @@ const MESSAGES = {
         QR_REFRESHING: '🔄 Auto-refreshing QR code...' // ✅ ADDED: QR refresh message
     },
     
-    // Pairing code messages - ✅ ADDED: Enhanced pairing messages
+    // Pairing code messages - ✅ UPDATED: Manual-only pairing messages
     PAIRING: {
         GENERATING: '🔢 Generating 8-digit pairing code...',
         READY: '✅ 8-digit pairing code ready!',
@@ -365,7 +370,10 @@ const MESSAGES = {
         COPIED: '📋 Pairing code copied to clipboard',
         EXPIRED: '⏰ Pairing code expired',
         INVALID_PHONE: '❌ Invalid phone number format',
-        GENERATION_FAILED: '❌ Failed to generate pairing code'
+        GENERATION_FAILED: '❌ Failed to generate pairing code',
+        PHONE_REQUIRED: '📱 Phone number REQUIRED for pairing codes', // ✅ ADDED: Required message
+        MANUAL_ONLY: '🔒 Pairing codes: MANUAL-ONLY mode', // ✅ ADDED: Manual-only indicator
+        NO_AUTO_CODES: '⚠️ No automatic pairing codes - Manual generation only' // ✅ ADDED: No auto codes
     },
     
     // Introduction messages (sent after successful connection)
@@ -373,12 +381,14 @@ const MESSAGES = {
         `🦅 *SAVAGE BOTS SCANNER ACTIVATED*\n` +
         `Multi-Bot WhatsApp System Ready!\n` +
         `Version: ${SCANNER_IDENTITY.VERSION}\n` +
-        `Code Name: ${SCANNER_IDENTITY.CODE_NAME}`,
+        `Code Name: ${SCANNER_IDENTITY.CODE_NAME}\n` +
+        `Pairing Mode: MANUAL-ONLY 8-digit codes`, // ✅ ADDED: Manual mode info
         
         `🔐 *SESSION SECURE*\n` +
         `Encrypted connection established\n` +
         `Session ID: [AUTO-GENERATED]\n` +
-        `Bots can now connect using session credentials`,
+        `Bots can now connect using session credentials\n` +
+        `Manual pairing codes enabled for specific numbers`, // ✅ ADDED: Manual pairing info
         
         `🎯 *ENJOY THE SAVAGE EXPERIENCE!*\n` +
         `Powered by ${SCANNER_IDENTITY.DEVELOPER}\n` +
@@ -394,7 +404,8 @@ const MESSAGES = {
         BOT_CONNECTION_FAILED: '🤖 Bot connection failed. Check session ID and try again.',
         WHATSAPP_INIT_FAILED: '❌ WhatsApp initialization failed. Running in limited mode.',
         QR_GENERATION_FAILED: '❌ QR code generation failed. Please refresh.',
-        PAIRING_GENERATION_FAILED: '❌ Pairing code generation failed' // ✅ ADDED
+        PAIRING_GENERATION_FAILED: '❌ Pairing code generation failed', // ✅ ADDED
+        PHONE_NUMBER_REQUIRED: '❌ Phone number is REQUIRED for pairing codes' // ✅ ADDED: Required error
     },
     
     // Status messages for frontend
@@ -405,7 +416,9 @@ const MESSAGES = {
         BOTS_CONNECTED: '🤖 Bots connected and operational',
         LIMITED_MODE: '⚠️ Running in limited mode - WhatsApp unavailable',
         QR_AUTO_REFRESH: '🔄 QR auto-refresh active (30s)', // ✅ ADDED
-        PAIRING_CODE_READY: '🔢 8-digit pairing code ready' // ✅ ADDED
+        PAIRING_CODE_READY: '🔢 8-digit pairing code ready', // ✅ ADDED
+        MANUAL_PAIRING_MODE: '🔒 MANUAL-ONLY pairing codes active', // ✅ ADDED: Manual mode
+        PHONE_REQUIRED: '📱 Phone number required for pairing' // ✅ ADDED: Phone requirement
     }
 };
 
@@ -509,8 +522,13 @@ module.exports = {
         return `savage-${timestamp}-${random}-${uuid}`.toLowerCase();
     },
     
-    // ✅ ADDED: Generate 8-digit pairing code
-    generatePairingCode() {
+    // ✅ UPDATED: Generate 8-digit pairing code (manual-only)
+    generatePairingCode(phoneNumber = null) {
+        // ✅ CHANGED: Phone number is now required for manual-only mode
+        if (!phoneNumber || phoneNumber.trim() === '') {
+            return null; // Return null if no phone number
+        }
+        
         const crypto = require('crypto');
         const numbers = '0123456789';
         let code = '';
@@ -523,9 +541,9 @@ module.exports = {
         return code;
     },
     
-    // ✅ ADDED: Validate phone number for pairing
+    // ✅ UPDATED: Validate phone number for pairing (required)
     isValidPhoneNumber(phone) {
-        if (!phone || phone.trim() === '') return true; // Allow empty for auto-generation
+        if (!phone || phone.trim() === '') return false; // ✅ CHANGED: No longer allow empty
         const phoneRegex = /^\+?[1-9]\d{1,14}$/;
         return phoneRegex.test(phone.replace(/\s/g, ''));
     },
@@ -573,14 +591,30 @@ module.exports = {
         };
     },
     
-    // ✅ ADDED: Get pairing code settings
+    // ✅ UPDATED: Get pairing code settings (manual-only)
     getPairingCodeSettings() {
         return {
             length: WHATSAPP_CONFIG.PAIRING.LENGTH,
             timeout: WHATSAPP_CONFIG.PAIRING.TIMEOUT,
             allowManual: WHATSAPP_CONFIG.PAIRING.ALLOW_MANUAL_GENERATION,
-            requirePhone: WHATSAPP_CONFIG.PAIRING.REQUIRE_PHONE_NUMBER,
-            autoGenerate: WHATSAPP_CONFIG.PAIRING.AUTO_GENERATE_WITH_QR
+            requirePhone: WHATSAPP_CONFIG.PAIRING.REQUIRE_PHONE_NUMBER, // ✅ CHANGED: Now true
+            autoGenerate: WHATSAPP_CONFIG.PAIRING.AUTO_GENERATE_WITH_QR, // ✅ CHANGED: Now false
+            mode: WHATSAPP_CONFIG.PAIRING.MODE // ✅ ADDED: Manual-only mode
+        };
+    },
+    
+    // ✅ ADDED: Check if manual-only pairing mode is enabled
+    isManualPairingMode() {
+        return WHATSAPP_CONFIG.PAIRING.MODE === 'MANUAL-ONLY';
+    },
+    
+    // ✅ ADDED: Get manual pairing mode configuration
+    getManualPairingConfig() {
+        return {
+            enabled: WHATSAPP_CONFIG.PAIRING.MODE === 'MANUAL-ONLY',
+            phoneRequired: WHATSAPP_CONFIG.PAIRING.REQUIRE_PHONE_NUMBER,
+            codeLength: WHATSAPP_CONFIG.PAIRING.LENGTH,
+            noAutoCodes: !WHATSAPP_CONFIG.PAIRING.AUTO_GENERATE_WITH_QR
         };
     }
 };
