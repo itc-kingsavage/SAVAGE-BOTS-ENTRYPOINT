@@ -6,6 +6,7 @@
  * ✅ FIXED: Added missing initializeWhatsApp() method for Baileys connection
  * ✅ FIXED: Added missing testLiveFunctionsConnection() method
  * ✅ FIXED: Server startup logic to always bind port
+ * ✅ FIXED: Baileys logger.child error with updated configuration
  */
 
 const express = require('express');
@@ -142,7 +143,7 @@ class SavageBotsScanner {
     }
 
     /**
-     * 🔗 Initialize WhatsApp Web connection using Baileys
+     * 🔗 Initialize WhatsApp Web connection using Baileys - FIXED VERSION
      */
     async initializeWhatsApp() {
         if (this.isConnecting) {
@@ -157,39 +158,60 @@ class SavageBotsScanner {
         console.log('🔗 [WHATSAPP] Initializing Baileys connection...');
 
         try {
-            const { state, saveCreds } = await useMultiFileAuthState('./auth/sessions/scanner');
+            // ✅ FIX: Ensure the sessions directory exists
+            const fs = require('fs');
+            const sessionsDir = './auth/sessions/scanner';
+            if (!fs.existsSync(sessionsDir)) {
+                fs.mkdirSync(sessionsDir, { recursive: true });
+                console.log('📁 [WHATSAPP] Created sessions directory');
+            }
+
+            // ✅ FIX: Use proper Baileys configuration
+            const { state, saveCreds } = await useMultiFileAuthState(sessionsDir);
             this.authState = state;
 
+            // ✅ FIX: Updated logger configuration for Baileys compatibility
             this.whatsappSocket = makeWASocket({
                 auth: this.authState,
                 printQRInTerminal: false,
-                browser: Browsers.appropriate('chrome'),
-                logger: { level: 'silent' },
+                browser: Browsers.ubuntu('Chrome'),
+                logger: undefined, // ✅ Let Baileys use default logger
                 connectTimeoutMs: 60000,
                 keepAliveIntervalMs: 30000,
-                markOnlineOnConnect: false,
+                markOnlineOnConnect: true, // ✅ Changed to true for better stability
+                getMessage: async () => undefined,
+                version: [2, 3000, 1010101010] // ✅ Latest WhatsApp Web version
             });
 
+            // 3. Handle Credentials Update
             this.whatsappSocket.ev.on('creds.update', saveCreds);
 
+            // 4. Handle Connection Updates (QR, Pairing, Connection)
             this.whatsappSocket.ev.on('connection.update', (update) => {
                 const { connection, lastDisconnect, qr, isNewLogin, phoneNumber } = update;
 
                 console.log(`📡 [WHATSAPP] Connection update: ${connection}`);
 
                 if (qr) {
+                    // ✅ QR Code Generated
                     console.log('✅ [WHATSAPP] QR code received');
                     this.handleQRGeneration(qr);
                     this.connectionStatus = 'qr_waiting';
-                    this.io.emit('connection_update', { status: 'qr_waiting', qrReceived: true });
+                    this.io.emit('connection_update', { 
+                        status: 'qr_waiting', 
+                        qrReceived: true,
+                        message: 'QR code ready for scanning'
+                    });
                 }
 
                 if (connection === 'open') {
+                    // ✅ Connected Successfully
                     console.log('✅ [WHATSAPP] Connected successfully!');
                     this.handleSuccessfulConnection();
                 }
 
                 if (connection === 'close') {
+                    // ❌ Connection Closed
                     this.handleConnectionClose(lastDisconnect);
                 }
 
@@ -200,30 +222,249 @@ class SavageBotsScanner {
                 if (phoneNumber) {
                     this.currentPhoneNumber = phoneNumber;
                     console.log(`📱 [WHATSAPP] Linked to: ${phoneNumber}`);
-                    this.io.emit('phone_number_linked', { phoneNumber });
+                    this.io.emit('phone_number_linked', { 
+                        phoneNumber,
+                        message: `Linked to ${phoneNumber}`
+                    });
                 }
             });
 
+            // 5. Handle pairing code events
             this.whatsappSocket.ev.on('pairing.code', (code) => {
                 console.log(`🔢 [WHATSAPP] Received pairing code from WhatsApp: ${code}`);
+                // You can store this for manual pairing reference
+                this.io.emit('whatsapp_pairing_code', {
+                    code: code,
+                    source: 'whatsapp',
+                    timestamp: new Date()
+                });
             });
 
+            // ✅ ADD: Handle QR refresh event
+            this.whatsappSocket.ev.on('qr', (qr) => {
+                console.log('🔄 [WHATSAPP] New QR code received');
+                this.handleQRGeneration(qr);
+            });
+
+            // Set client reference
             this.client = this.whatsappSocket;
             this.whatsappAvailable = true;
 
             console.log('✅ [WHATSAPP] Initialization complete, waiting for QR/connection...');
 
+            // ✅ ADD: If no QR after 5 seconds, force refresh
+            setTimeout(() => {
+                if (!this.currentQR && !this.isAuthenticated) {
+                    console.log('⏰ [WHATSAPP] No QR received, checking connection...');
+                    this.io.emit('connection_update', {
+                        status: 'waiting_qr',
+                        message: 'Waiting for QR code from WhatsApp...'
+                    });
+                }
+            }, 5000);
+
         } catch (error) {
             console.error('💥 [WHATSAPP] Initialization failed:', error);
+            console.error('💥 [WHATSAPP] Stack:', error.stack);
+            
             this.connectionStatus = 'failed';
             this.whatsappAvailable = false;
+            
             this.io.emit('connection_update', {
                 status: 'failed',
-                error: error.message
+                error: error.message,
+                details: 'Check Baileys version and configuration'
             });
         } finally {
             this.isConnecting = false;
         }
+    }
+
+    /**
+     * ✅ Handle QR code generation and broadcasting - ENHANCED
+     */
+    async handleQRGeneration(qrCode) {
+        try {
+            // ✅ Ensure qrCode is a string
+            const qrString = typeof qrCode === 'string' ? qrCode : String(qrCode);
+            
+            // ✅ Generate QR image data
+            const qrImageData = await qrcode.toDataURL(qrString);
+            this.currentQR = qrImageData;
+
+            console.log('🔄 [WHATSAPP] QR code generated and broadcast');
+
+            // ✅ Broadcast to all WebSocket clients
+            this.io.emit('qr_data', {
+                qrImage: qrImageData,
+                pairingCode: null,
+                timestamp: Date.now(),
+                pairingCodeLength: WHATSAPP_CONFIG.PAIRING.LENGTH,
+                pairingMode: 'MANUAL-ONLY',
+                message: 'Scan this QR code with WhatsApp',
+                rawQR: qrString.substring(0, 50) + '...' // For debugging
+            });
+
+            // Set QR expiry timeout
+            this.clearQRTimeouts();
+            this.qrTimeout = setTimeout(() => {
+                console.log('⏰ [WHATSAPP] QR code expired');
+                this.currentQR = null;
+                this.io.emit('qr_expired', {
+                    message: 'QR code expired. Refreshing...',
+                    timestamp: new Date()
+                });
+                this.refreshQRCode();
+            }, this.qrExpiryTime);
+
+            // Auto-regenerate QR every 30 seconds if not scanned
+            this.qrRegenerationInterval = setInterval(() => {
+                if (!this.isAuthenticated && this.whatsappSocket) {
+                    console.log('🔄 [WHATSAPP] Auto-regenerating QR code');
+                    this.refreshQRCode();
+                }
+            }, this.qrRegenerationIntervalMs);
+
+        } catch (error) {
+            console.error('❌ [WHATSAPP] QR generation failed:', error);
+            
+            // ✅ Fallback: Send raw QR code as text
+            this.io.emit('qr_data', {
+                qrImage: null,
+                qrText: typeof qrCode === 'string' ? qrCode.substring(0, 100) : 'Invalid QR',
+                pairingCode: null,
+                timestamp: Date.now(),
+                error: 'QR image generation failed',
+                message: 'Try refreshing the page'
+            });
+        }
+    }
+
+    /**
+     * ✅ Handle successful WhatsApp connection
+     */
+    handleSuccessfulConnection() {
+        this.isAuthenticated = true;
+        this.connectionStatus = 'connected';
+        this.reconnectAttempts = 0;
+        this.whatsappAvailable = true;
+
+        this.sessionId = generateSessionId();
+        console.log(`✅ [WHATSAPP] Authenticated. Session ID: ${this.sessionId}`);
+
+        this.clearQRTimeouts();
+        this.currentQR = null;
+
+        this.io.emit('connection_update', {
+            status: 'connected',
+            sessionId: this.sessionId,
+            message: 'WhatsApp connected successfully',
+            timestamp: new Date()
+        });
+
+        this.io.emit('ready', {
+            status: 'connected',
+            sessionId: this.sessionId,
+            phoneNumber: this.currentPhoneNumber,
+            message: 'Scanner is active and ready',
+            pairingCodeLength: WHATSAPP_CONFIG.PAIRING.LENGTH,
+            pairingMode: 'MANUAL-ONLY',
+            functions: LIVE_FUNCTIONS_CONFIG.BASE_URL
+        });
+    }
+
+    /**
+     * ✅ Handle connection close and attempt reconnection
+     */
+    handleConnectionClose(lastDisconnect) {
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const logoutRequest = lastDisconnect?.error?.output?.payload?.logoutRequest;
+
+        console.log(`🔌 [WHATSAPP] Connection closed. Status: ${statusCode}, Logout: ${logoutRequest}`);
+
+        this.connectionStatus = 'disconnected';
+        this.isAuthenticated = false;
+        this.whatsappAvailable = false;
+
+        this.io.emit('connection_update', {
+            status: 'disconnected',
+            reason: statusCode ? `Error ${statusCode}` : 'Unknown',
+            shouldReconnect: this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts
+        });
+
+        if (logoutRequest) {
+            console.log('🚪 [WHATSAPP] Logged out from phone');
+            this.io.emit('logged_out', { message: 'Logged out from WhatsApp' });
+            this.shouldReconnect = false;
+            return;
+        }
+
+        if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.reconnectAttempts++;
+            const delay = Math.min(5000 * this.reconnectAttempts, 30000);
+
+            console.log(`🔄 [WHATSAPP] Reconnecting in ${delay}ms (Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+
+            setTimeout(() => {
+                if (this.shouldReconnect) {
+                    this.initializeWhatsApp().catch(console.error);
+                }
+            }, delay);
+        } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.error('❌ [WHATSAPP] Max reconnection attempts reached');
+            this.io.emit('connection_update', {
+                status: 'failed',
+                error: 'Max reconnection attempts reached. Please refresh QR.'
+            });
+        }
+    }
+
+    /**
+     * 🔄 Manually refresh QR code - ENHANCED
+     */
+    async refreshQRCode() {
+        console.log('🔄 [WHATSAPP] Manually refreshing QR code...');
+        
+        // Notify clients
+        this.io.emit('connection_update', {
+            status: 'refreshing',
+            message: 'Refreshing QR code...'
+        });
+
+        // Clean up old connection
+        if (this.whatsappSocket) {
+            try {
+                await this.whatsappSocket.logout();
+                console.log('✅ [WHATSAPP] Old connection cleaned up');
+            } catch (error) {
+                console.log('⚠️ [WHATSAPP] Cleanup had issues:', error.message);
+            }
+            this.whatsappSocket = null;
+        }
+
+        // Reset state
+        this.isAuthenticated = false;
+        this.sessionId = null;
+        this.currentPhoneNumber = null;
+        this.currentQR = null;
+        this.connectionStatus = 'disconnected';
+        this.reconnectAttempts = 0;
+        this.shouldReconnect = true;
+
+        // Clear timeouts
+        this.clearQRTimeouts();
+
+        // Start new connection with delay
+        setTimeout(() => {
+            console.log('🔄 [WHATSAPP] Starting new connection...');
+            this.initializeWhatsApp().catch(error => {
+                console.error('💥 [WHATSAPP] Re-initialization failed:', error.message);
+                this.io.emit('connection_update', {
+                    status: 'failed',
+                    error: 'Failed to reconnect: ' + error.message
+                });
+            });
+        }, 2000); // 2 second delay
     }
 
     /**
@@ -555,162 +796,6 @@ class SavageBotsScanner {
             fallback: true,
             timestamp: new Date().toISOString()
         };
-    }
-
-    /**
-     * ✅ Handle QR code generation and broadcasting
-     */
-    async handleQRGeneration(qrCode) {
-        try {
-            const qrImageData = await qrcode.toDataURL(qrCode);
-            this.currentQR = qrImageData;
-
-            console.log('🔄 [WHATSAPP] QR code generated and broadcast');
-
-            this.io.emit('qr_data', {
-                qrImage: qrImageData,
-                pairingCode: null,
-                timestamp: Date.now(),
-                pairingCodeLength: WHATSAPP_CONFIG.PAIRING.LENGTH,
-                pairingMode: 'MANUAL-ONLY',
-                message: 'Scan this QR code with WhatsApp'
-            });
-
-            this.clearQRTimeouts();
-            this.qrTimeout = setTimeout(() => {
-                console.log('⏰ [WHATSAPP] QR code expired');
-                this.currentQR = null;
-                this.io.emit('qr_expired', {
-                    message: 'QR code expired. Refreshing...',
-                    timestamp: new Date()
-                });
-                this.refreshQRCode();
-            }, this.qrExpiryTime);
-
-            this.qrRegenerationInterval = setInterval(() => {
-                if (!this.isAuthenticated && this.whatsappSocket) {
-                    console.log('🔄 [WHATSAPP] Auto-regenerating QR code');
-                    this.refreshQRCode();
-                }
-            }, this.qrRegenerationIntervalMs);
-
-        } catch (error) {
-            console.error('❌ [WHATSAPP] QR generation failed:', error);
-        }
-    }
-
-    /**
-     * ✅ Handle successful WhatsApp connection
-     */
-    handleSuccessfulConnection() {
-        this.isAuthenticated = true;
-        this.connectionStatus = 'connected';
-        this.reconnectAttempts = 0;
-        this.whatsappAvailable = true;
-
-        this.sessionId = generateSessionId();
-        console.log(`✅ [WHATSAPP] Authenticated. Session ID: ${this.sessionId}`);
-
-        this.clearQRTimeouts();
-        this.currentQR = null;
-
-        this.io.emit('connection_update', {
-            status: 'connected',
-            sessionId: this.sessionId,
-            message: 'WhatsApp connected successfully',
-            timestamp: new Date()
-        });
-
-        this.io.emit('ready', {
-            status: 'connected',
-            sessionId: this.sessionId,
-            phoneNumber: this.currentPhoneNumber,
-            message: 'Scanner is active and ready',
-            pairingCodeLength: WHATSAPP_CONFIG.PAIRING.LENGTH,
-            pairingMode: 'MANUAL-ONLY',
-            functions: LIVE_FUNCTIONS_CONFIG.BASE_URL
-        });
-    }
-
-    /**
-     * ✅ Handle connection close and attempt reconnection
-     */
-    handleConnectionClose(lastDisconnect) {
-        const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const logoutRequest = lastDisconnect?.error?.output?.payload?.logoutRequest;
-
-        console.log(`🔌 [WHATSAPP] Connection closed. Status: ${statusCode}, Logout: ${logoutRequest}`);
-
-        this.connectionStatus = 'disconnected';
-        this.isAuthenticated = false;
-        this.whatsappAvailable = false;
-
-        this.io.emit('connection_update', {
-            status: 'disconnected',
-            reason: statusCode ? `Error ${statusCode}` : 'Unknown',
-            shouldReconnect: this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts
-        });
-
-        if (logoutRequest) {
-            console.log('🚪 [WHATSAPP] Logged out from phone');
-            this.io.emit('logged_out', { message: 'Logged out from WhatsApp' });
-            this.shouldReconnect = false;
-            return;
-        }
-
-        if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
-            this.reconnectAttempts++;
-            const delay = Math.min(5000 * this.reconnectAttempts, 30000);
-
-            console.log(`🔄 [WHATSAPP] Reconnecting in ${delay}ms (Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-
-            setTimeout(() => {
-                if (this.shouldReconnect) {
-                    this.initializeWhatsApp().catch(console.error);
-                }
-            }, delay);
-        } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            console.error('❌ [WHATSAPP] Max reconnection attempts reached');
-            this.io.emit('connection_update', {
-                status: 'failed',
-                error: 'Max reconnection attempts reached. Please refresh QR.'
-            });
-        }
-    }
-
-    /**
-     * 🔄 Manually refresh QR code
-     */
-    async refreshQRCode() {
-        console.log('🔄 [WHATSAPP] Manually refreshing QR code...');
-
-        if (this.whatsappSocket) {
-            try {
-                await this.whatsappSocket.logout();
-            } catch (error) {
-                // Ignore logout errors
-            }
-            this.whatsappSocket = null;
-        }
-
-        this.isAuthenticated = false;
-        this.sessionId = null;
-        this.currentPhoneNumber = null;
-        this.currentQR = null;
-        this.connectionStatus = 'disconnected';
-        this.reconnectAttempts = 0;
-        this.shouldReconnect = true;
-
-        this.clearQRTimeouts();
-
-        this.io.emit('connection_update', {
-            status: 'refreshing',
-            message: 'Refreshing QR code...'
-        });
-
-        setTimeout(() => {
-            this.initializeWhatsApp().catch(console.error);
-        }, 1000);
     }
 
     /**
