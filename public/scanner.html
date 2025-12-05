@@ -1012,4 +1012,94 @@
         function setupKeyboardHelp() {
             document.addEventListener('keydown', function(e) {
                 // Ctrl+Shift+H for help
-                if
+                if (e.ctrlKey && e.shiftKey && e.key === 'H') {
+                    e.preventDefault();
+                    alert(`🦅 SAVAGE SCANNER KEYBOARD SHORTCUTS:\n\n` +
+                          `Ctrl+Shift+L - Logout\n` +
+                          `Ctrl+Shift+R - Refresh QR\n` +
+                          `Ctrl+Shift+C - Copy Session ID\n` +
+                          `Ctrl+Shift+Q - Copy Pairing Code\n` +
+                          `Ctrl+Shift+G - Generate Pairing Code\n` +
+                          `Ctrl+Shift+D - Download QR\n` +
+                          `Ctrl+Shift+H - Show this help`);
+                }
+
+                // Ctrl+Shift+R to refresh QR
+                if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+                    e.preventDefault();
+                    document.getElementById('refreshQRBtn').click();
+                }
+
+                // Ctrl+Shift+Q to copy pairing code
+                if (e.ctrlKey && e.shiftKey && e.key === 'Q') {
+                    e.preventDefault();
+                    document.getElementById('copyPairingBtn').click();
+                }
+
+                // Ctrl+Shift+G to generate pairing code
+                if (e.ctrlKey && e.shiftKey && e.key === 'G') {
+                    e.preventDefault();
+                    document.getElementById('generatePairingBtn').click();
+                }
+            });
+        }
+
+        // Notification system
+        function showNotification(message, type = 'info') {
+            const notifications = document.getElementById('notifications');
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            notification.innerHTML = `
+                <span class="notification-icon">${getNotificationIcon(type)}</span>
+                <span class="notification-message">${message}</span>
+                <button class="notification-close" onclick="this.parentElement.remove()">×</button>
+            `;
+            
+            notifications.appendChild(notification);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 5000);
+        }
+
+        function getNotificationIcon(type) {
+            const icons = {
+                'success': '✅',
+                'error': '❌',
+                'warning': '⚠️',
+                'info': 'ℹ️'
+            };
+            return icons[type] || 'ℹ️';
+        }
+
+        // Global functions for scanner.js integration
+        function copySessionId() {
+            if (window.savageScanner) {
+                window.savageScanner.copySessionId();
+            }
+        }
+
+        function refreshQR() {
+            if (window.savageScanner) {
+                window.savageScanner.refreshQR();
+            }
+        }
+
+        function logout() {
+            if (window.savageScanner) {
+                window.savageScanner.handleLogout();
+            }
+        }
+
+        // Make functions globally available
+        window.showNotification = showNotification;
+        window.copySessionId = copySessionId;
+        window.refreshQR = refreshQR;
+        window.logout = logout;
+        window.isValidPhoneNumber = isValidPhoneNumber;
+    </script>
+</body>
+</html>
