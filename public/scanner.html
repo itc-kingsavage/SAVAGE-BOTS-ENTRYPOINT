@@ -126,14 +126,14 @@
                 <div class="terminal-container bots-section">
                     <h3 class="section-title">🤖 BOT STATUS</h3>
                     <div class="bots-grid">
-                        <!-- SAVAGE-X Bot -->
-                        <div id="bot-savage-x" class="bot-card savage-x offline">
+                        <!-- SAVAGE-X Bot - UPDATED: Correct ID and onclick -->
+                        <div id="bot-savage_x" class="bot-card savage_x offline" onclick="window.savageScanner.selectBot('SAVAGE-X')">
                             <div class="bot-icon">🦅</div>
                             <div class="bot-name">SAVAGE-X</div>
-                            <div id="status-savage-x" class="bot-status status-offline">OFFLINE</div>
+                            <div id="status-savage_x" class="bot-status status-offline">OFFLINE</div>
                             <div class="bot-info">
                                 <span class="info-label">Last Seen:</span>
-                                <span id="lastSeen-savage-x" class="info-value">Never</span>
+                                <span id="lastSeen-savage_x" class="info-value">Never</span>
                             </div>
                             <div class="bot-commands">
                                 <span class="command-tag">!savage</span>
@@ -142,14 +142,14 @@
                             </div>
                         </div>
 
-                        <!-- DE-UKNOWN-BOT -->
-                        <div id="bot-de-unknown" class="bot-card de-unknown offline">
+                        <!-- DE-UKNOWN-BOT - UPDATED: Correct ID and onclick -->
+                        <div id="bot-de_uknown_bot" class="bot-card de_uknown_bot offline" onclick="window.savageScanner.selectBot('DE-UKNOWN-BOT')">
                             <div class="bot-icon">🌌</div>
                             <div class="bot-name">DE-UKNOWN-BOT</div>
-                            <div id="status-de-unknown" class="bot-status status-offline">OFFLINE</div>
+                            <div id="status-de_uknown_bot" class="bot-status status-offline">OFFLINE</div>
                             <div class="bot-info">
                                 <span class="info-label">Last Seen:</span>
-                                <span id="lastSeen-de-unknown" class="info-value">Never</span>
+                                <span id="lastSeen-de_uknown_bot" class="info-value">Never</span>
                             </div>
                             <div class="bot-commands">
                                 <span class="command-tag">!deunknown</span>
@@ -158,14 +158,14 @@
                             </div>
                         </div>
 
-                        <!-- QUEEN RIXIE -->
-                        <div id="bot-queen-rixie" class="bot-card queen-rixie offline">
+                        <!-- QUEEN RIXIE - UPDATED: Correct ID and onclick -->
+                        <div id="bot-queen_rixie" class="bot-card queen_rixie offline" onclick="window.savageScanner.selectBot('QUEEN-RIXIE')">
                             <div class="bot-icon">👑</div>
                             <div class="bot-name">QUEEN RIXIE</div>
-                            <div id="status-queen-rixie" class="bot-status status-offline">OFFLINE</div>
+                            <div id="status-queen_rixie" class="bot-status status-offline">OFFLINE</div>
                             <div class="bot-info">
                                 <span class="info-label">Last Seen:</span>
-                                <span id="lastSeen-queen-rixie" class="info-value">Never</span>
+                                <span id="lastSeen-queen_rixie" class="info-value">Never</span>
                             </div>
                             <div class="bot-commands">
                                 <span class="command-tag">!queen</span>
@@ -489,6 +489,7 @@
         .bot-card {
             padding: 20px;
             text-align: center;
+            cursor: pointer; /* ADDED: Shows it's clickable */
             transition: all 0.3s ease;
             border: 2px solid;
         }
@@ -498,13 +499,18 @@
             box-shadow: 0 10px 25px rgba(0, 255, 0, 0.3);
         }
 
-        .bot-card.savage-x { border-color: var(--matrix-green); }
-        .bot-card.de-unknown { border-color: var(--accent-blue); }
-        .bot-card.queen-rixie { border-color: var(--accent-purple); }
+        /* UPDATED CSS classes to match IDs */
+        .bot-card.savage_x { border-color: var(--matrix-green); }
+        .bot-card.de_uknown_bot { border-color: var(--accent-blue); }
+        .bot-card.queen_rixie { border-color: var(--accent-purple); }
 
         .bot-card.online { background: rgba(0, 255, 0, 0.05); }
         .bot-card.offline { background: rgba(255, 0, 0, 0.05); }
         .bot-card.connecting { background: rgba(255, 255, 0, 0.05); }
+        .bot-card.selected { /* ADDED: For selected state */
+            border: 3px solid var(--matrix-green);
+            box-shadow: 0 0 20px var(--matrix-green);
+        }
 
         .bot-icon {
             width: 60px;
@@ -518,9 +524,9 @@
             border: 2px solid;
         }
 
-        .savage-x .bot-icon { border-color: var(--matrix-green); background: rgba(0, 255, 0, 0.1); }
-        .de-unknown .bot-icon { border-color: var(--accent-blue); background: rgba(0, 0, 255, 0.1); }
-        .queen-rixie .bot-icon { border-color: var(--accent-purple); background: rgba(255, 0, 255, 0.1); }
+        .savage_x .bot-icon { border-color: var(--matrix-green); background: rgba(0, 255, 0, 0.1); }
+        .de_uknown_bot .bot-icon { border-color: var(--accent-blue); background: rgba(0, 0, 255, 0.1); }
+        .queen_rixie .bot-icon { border-color: var(--accent-purple); background: rgba(255, 0, 255, 0.1); }
 
         .bot-name {
             font-size: 1.2rem;
@@ -1006,94 +1012,4 @@
         function setupKeyboardHelp() {
             document.addEventListener('keydown', function(e) {
                 // Ctrl+Shift+H for help
-                if (e.ctrlKey && e.shiftKey && e.key === 'H') {
-                    e.preventDefault();
-                    alert(`🦅 SAVAGE SCANNER KEYBOARD SHORTCUTS:\n\n` +
-                          `Ctrl+Shift+L - Logout\n` +
-                          `Ctrl+Shift+R - Refresh QR\n` +
-                          `Ctrl+Shift+C - Copy Session ID\n` +
-                          `Ctrl+Shift+Q - Copy Pairing Code\n` +
-                          `Ctrl+Shift+G - Generate Pairing Code\n` +
-                          `Ctrl+Shift+D - Download QR\n` +
-                          `Ctrl+Shift+H - Show this help`);
-                }
-
-                // Ctrl+Shift+R to refresh QR
-                if (e.ctrlKey && e.shiftKey && e.key === 'R') {
-                    e.preventDefault();
-                    document.getElementById('refreshQRBtn').click();
-                }
-
-                // Ctrl+Shift+Q to copy pairing code
-                if (e.ctrlKey && e.shiftKey && e.key === 'Q') {
-                    e.preventDefault();
-                    document.getElementById('copyPairingBtn').click();
-                }
-
-                // Ctrl+Shift+G to generate pairing code
-                if (e.ctrlKey && e.shiftKey && e.key === 'G') {
-                    e.preventDefault();
-                    document.getElementById('generatePairingBtn').click();
-                }
-            });
-        }
-
-        // Notification system
-        function showNotification(message, type = 'info') {
-            const notifications = document.getElementById('notifications');
-            const notification = document.createElement('div');
-            notification.className = `notification notification-${type}`;
-            notification.innerHTML = `
-                <span class="notification-icon">${getNotificationIcon(type)}</span>
-                <span class="notification-message">${message}</span>
-                <button class="notification-close" onclick="this.parentElement.remove()">×</button>
-            `;
-            
-            notifications.appendChild(notification);
-            
-            // Auto remove after 5 seconds
-            setTimeout(() => {
-                if (notification.parentElement) {
-                    notification.remove();
-                }
-            }, 5000);
-        }
-
-        function getNotificationIcon(type) {
-            const icons = {
-                'success': '✅',
-                'error': '❌',
-                'warning': '⚠️',
-                'info': 'ℹ️'
-            };
-            return icons[type] || 'ℹ️';
-        }
-
-        // Global functions for scanner.js integration
-        function copySessionId() {
-            if (window.savageScanner) {
-                window.savageScanner.copySessionId();
-            }
-        }
-
-        function refreshQR() {
-            if (window.savageScanner) {
-                window.savageScanner.refreshQR();
-            }
-        }
-
-        function logout() {
-            if (window.savageScanner) {
-                window.savageScanner.handleLogout();
-            }
-        }
-
-        // Make functions globally available
-        window.showNotification = showNotification;
-        window.copySessionId = copySessionId;
-        window.refreshQR = refreshQR;
-        window.logout = logout;
-        window.isValidPhoneNumber = isValidPhoneNumber;
-    </script>
-</body>
-</html>
+                if
