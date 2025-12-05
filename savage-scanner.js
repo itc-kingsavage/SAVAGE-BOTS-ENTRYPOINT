@@ -2,11 +2,10 @@
  * 🦅 SAVAGE BOTS SCANNER - Main Server File
  * Multi-bot WhatsApp scanner with hacker theme
  * COMPATIBLE with Baileys v6+
- * UPDATED: Manual-Only Pairing Codes + QR Regeneration + LIVE FUNCTIONS
- * ✅ FIXED: Added missing initializeWhatsApp() method for Baileys connection
- * ✅ FIXED: Added missing testLiveFunctionsConnection() method
- * ✅ FIXED: Server startup logic to always bind port
- * ✅ FIXED: Baileys logger.child error with updated configuration
+ * UPDATED: Manual-Only Pairing Codes + QR Regeneration + LIVE FUNCTIONS + BOT SELECTION
+ * ✅ FIXED: Bot selection system with separate sessions
+ * ✅ ADDED: Session folder per bot
+ * ✅ FIXED: WebSocket bot selection events
  */
 
 const express = require('express');
@@ -15,6 +14,7 @@ const http = require('http');
 const path = require('path');
 const qrcode = require('qrcode');
 const axios = require('axios');
+const fs = require('fs');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
 
 const savageDatabase = require('./config/database');
@@ -64,6 +64,10 @@ class SavageBotsScanner {
         this.activePairingCode = null;
         this.pairingCodeExpiry = WHATSAPP_CONFIG.PAIRING.TIMEOUT;
 
+        // NEW: Bot selection tracking
+        this.selectedBot = null;
+        this.botSessions = new Map(); // Stores session per bot
+        
         this.functionsClient = axios.create({
             baseURL: LIVE_FUNCTIONS_CONFIG.BASE_URL,
             timeout: LIVE_FUNCTIONS_CONFIG.TIMEOUT,
@@ -111,29 +115,23 @@ class SavageBotsScanner {
         console.log(`🦅 Environment: ${process.env.NODE_ENV || 'development'}`);
         console.log(`🦅 Pairing Mode: MANUAL-ONLY (${WHATSAPP_CONFIG.PAIRING.LENGTH}-digit)`);
         console.log(`🦅 Functions: LIVE @ ${LIVE_FUNCTIONS_CONFIG.BASE_URL}`);
+        console.log(`🦅 Bot Selection: TAP-TO-CONNECT system active`);
         console.log('🦅 ============================================================');
 
-        // Start the server FIRST - this is critical for Render health checks
+        // Start the server FIRST
         this.startServer();
 
         try {
-            // Test live functions connection
             await this.testLiveFunctionsConnection();
-
-            // Initialize core systems in sequence
             await this.initializeDatabase();
             await this.setupExpress();
             await this.setupWebSocket();
             
-            // Then initialize WhatsApp (non-blocking)
-            this.initializeWhatsApp().catch(error => {
-                console.error('❌ [SCANNER] WhatsApp initialization failed, running in limited mode:', error.message);
-                this.whatsappAvailable = false;
-                
-                this.io.emit('status_update', {
-                    status: 'whatsapp_unavailable',
-                    message: 'WhatsApp connection failed - Scanner running in limited mode'
-                });
+            console.log('✅ [SCANNER] Core systems initialized - Waiting for bot selection');
+            
+            this.io.emit('status_update', {
+                status: 'ready_for_bot',
+                message: 'Scanner ready - Tap a bot to connect'
             });
             
         } catch (error) {
@@ -143,9 +141,59 @@ class SavageBotsScanner {
     }
 
     /**
-     * 🔗 Initialize WhatsApp Web connection using Baileys - FIXED VERSION
+     * 🤖 NEW: Handle bot selection from frontend
      */
-    async initializeWhatsApp() {
+    async handleBotSelection(botName, socket) {
+        console.log(`🤖 [SCANNER] Bot selected: ${botName}`);
+        
+        // Validate bot name
+        const validBots = ['SAVAGE-X', 'DE-UKNOWN-BOT', 'QUEEN-RIXIE'];
+        if (!validBots.includes(botName)) {
+            socket.emit('bot_selected', {
+                success: false,
+                error: 'Invalid bot name'
+            });
+            return;
+        }
+        
+        this.selectedBot = botName;
+        
+        // Create session directory for this bot
+        const botSessionDir = path.join(__dirname, 'sessions', botName.toLowerCase().replace('-', '_'));
+        if (!fs.existsSync(botSessionDir)) {
+            fs.mkdirSync(botSessionDir, { recursive: true });
+            console.log(`📁 [SCANNER] Created session directory for ${botName}`);
+        }
+        
+        // Store session info
+        this.botSessions.set(botName, {
+            sessionDir: botSessionDir,
+            selectedAt: new Date(),
+            status: 'selected'
+        });
+        
+        // Notify all clients
+        this.io.emit('bot_status', {
+            botName: botName,
+            status: 'selected',
+            message: `${botName} selected - Generating QR...`
+        });
+        
+        socket.emit('bot_selected', {
+            success: true,
+            botName: botName,
+            message: `${botName} session prepared`,
+            timestamp: new Date()
+        });
+        
+        // Initialize WhatsApp for this bot
+        this.initializeWhatsAppForBot(botName, botSessionDir);
+    }
+
+    /**
+     * 🔗 NEW: Initialize WhatsApp for specific bot
+     */
+    async initializeWhatsAppForBot(botName, sessionDir) {
         if (this.isConnecting) {
             console.log('⚠️ [WHATSAPP] Connection already in progress');
             return;
@@ -155,125 +203,112 @@ class SavageBotsScanner {
         this.connectionStatus = 'connecting';
         this.whatsappAvailable = false;
 
-        console.log('🔗 [WHATSAPP] Initializing Baileys connection...');
+        console.log(`🔗 [WHATSAPP] Initializing connection for ${botName}...`);
 
         try {
-            // ✅ FIX: Ensure the sessions directory exists
-            const fs = require('fs');
-            const sessionsDir = './auth/sessions/scanner';
-            if (!fs.existsSync(sessionsDir)) {
-                fs.mkdirSync(sessionsDir, { recursive: true });
-                console.log('📁 [WHATSAPP] Created sessions directory');
+            // Create bot-specific session directory
+            if (!fs.existsSync(sessionDir)) {
+                fs.mkdirSync(sessionDir, { recursive: true });
             }
 
-            // ✅ FIX: Use proper Baileys configuration
-            const { state, saveCreds } = await useMultiFileAuthState(sessionsDir);
+            // Use bot-specific auth state
+            const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
             this.authState = state;
 
-            // ✅ FIX: Updated logger configuration for Baileys compatibility
             this.whatsappSocket = makeWASocket({
                 auth: this.authState,
                 printQRInTerminal: false,
                 browser: Browsers.ubuntu('Chrome'),
-                logger: undefined, // ✅ Let Baileys use default logger
+                logger: undefined,
                 connectTimeoutMs: 60000,
                 keepAliveIntervalMs: 30000,
-                markOnlineOnConnect: true, // ✅ Changed to true for better stability
+                markOnlineOnConnect: true,
                 getMessage: async () => undefined,
-                version: [2, 3000, 1010101010] // ✅ Latest WhatsApp Web version
+                version: [2, 3000, 1010101010]
             });
 
-            // 3. Handle Credentials Update
+            // Handle credentials update
             this.whatsappSocket.ev.on('creds.update', saveCreds);
 
-            // 4. Handle Connection Updates (QR, Pairing, Connection)
+            // Handle connection updates
             this.whatsappSocket.ev.on('connection.update', (update) => {
                 const { connection, lastDisconnect, qr, isNewLogin, phoneNumber } = update;
 
-                console.log(`📡 [WHATSAPP] Connection update: ${connection}`);
+                console.log(`📡 [WHATSAPP-${botName}] Connection update: ${connection}`);
 
                 if (qr) {
-                    // ✅ QR Code Generated
-                    console.log('✅ [WHATSAPP] QR code received');
-                    this.handleQRGeneration(qr);
+                    console.log(`✅ [WHATSAPP-${botName}] QR code received`);
+                    this.handleQRGenerationForBot(qr, botName);
                     this.connectionStatus = 'qr_waiting';
+                    
                     this.io.emit('connection_update', { 
                         status: 'qr_waiting', 
                         qrReceived: true,
-                        message: 'QR code ready for scanning'
+                        botName: botName,
+                        message: `QR code ready for ${botName}`
                     });
                 }
 
                 if (connection === 'open') {
-                    // ✅ Connected Successfully
-                    console.log('✅ [WHATSAPP] Connected successfully!');
-                    this.handleSuccessfulConnection();
+                    console.log(`✅ [WHATSAPP-${botName}] Connected successfully!`);
+                    this.handleSuccessfulConnectionForBot(botName);
                 }
 
                 if (connection === 'close') {
-                    // ❌ Connection Closed
-                    this.handleConnectionClose(lastDisconnect);
-                }
-
-                if (isNewLogin) {
-                    console.log('🔄 [WHATSAPP] New login detected');
+                    this.handleConnectionClose(lastDisconnect, botName);
                 }
 
                 if (phoneNumber) {
                     this.currentPhoneNumber = phoneNumber;
-                    console.log(`📱 [WHATSAPP] Linked to: ${phoneNumber}`);
+                    console.log(`📱 [WHATSAPP-${botName}] Linked to: ${phoneNumber}`);
+                    
                     this.io.emit('phone_number_linked', { 
                         phoneNumber,
-                        message: `Linked to ${phoneNumber}`
+                        botName: botName,
+                        message: `${botName} linked to ${phoneNumber}`
                     });
                 }
             });
 
-            // 5. Handle pairing code events
+            // Handle pairing code events
             this.whatsappSocket.ev.on('pairing.code', (code) => {
-                console.log(`🔢 [WHATSAPP] Received pairing code from WhatsApp: ${code}`);
-                // You can store this for manual pairing reference
+                console.log(`🔢 [WHATSAPP-${botName}] Pairing code: ${code}`);
+                
                 this.io.emit('whatsapp_pairing_code', {
                     code: code,
+                    botName: botName,
                     source: 'whatsapp',
                     timestamp: new Date()
                 });
             });
 
-            // ✅ ADD: Handle QR refresh event
+            // Handle QR refresh
             this.whatsappSocket.ev.on('qr', (qr) => {
-                console.log('🔄 [WHATSAPP] New QR code received');
-                this.handleQRGeneration(qr);
+                console.log(`🔄 [WHATSAPP-${botName}] New QR code received`);
+                this.handleQRGenerationForBot(qr, botName);
             });
 
-            // Set client reference
             this.client = this.whatsappSocket;
             this.whatsappAvailable = true;
 
-            console.log('✅ [WHATSAPP] Initialization complete, waiting for QR/connection...');
+            console.log(`✅ [WHATSAPP-${botName}] Initialization complete, waiting for QR...`);
 
-            // ✅ ADD: If no QR after 5 seconds, force refresh
             setTimeout(() => {
                 if (!this.currentQR && !this.isAuthenticated) {
-                    console.log('⏰ [WHATSAPP] No QR received, checking connection...');
-                    this.io.emit('connection_update', {
-                        status: 'waiting_qr',
-                        message: 'Waiting for QR code from WhatsApp...'
-                    });
+                    console.log(`⏰ [WHATSAPP-${botName}] No QR received yet`);
                 }
             }, 5000);
 
         } catch (error) {
-            console.error('💥 [WHATSAPP] Initialization failed:', error);
-            console.error('💥 [WHATSAPP] Stack:', error.stack);
+            console.error(`💥 [WHATSAPP-${botName}] Initialization failed:`, error);
             
             this.connectionStatus = 'failed';
             this.whatsappAvailable = false;
             
             this.io.emit('connection_update', {
                 status: 'failed',
-                error: error.message,
-                details: 'Check Baileys version and configuration'
+                botName: botName,
+                error: error.message
             });
         } finally {
             this.isConnecting = false;
@@ -281,92 +316,86 @@ class SavageBotsScanner {
     }
 
     /**
-     * ✅ Handle QR code generation and broadcasting - ENHANCED
+     * 📱 NEW: Handle QR generation for specific bot
      */
-    async handleQRGeneration(qrCode) {
+    async handleQRGenerationForBot(qrCode, botName) {
         try {
-            // ✅ Ensure qrCode is a string
             const qrString = typeof qrCode === 'string' ? qrCode : String(qrCode);
-            
-            // ✅ Generate QR image data
             const qrImageData = await qrcode.toDataURL(qrString);
             this.currentQR = qrImageData;
 
-            console.log('🔄 [WHATSAPP] QR code generated and broadcast');
+            console.log(`🔄 [WHATSAPP-${botName}] QR code generated`);
 
-            // ✅ Broadcast to all WebSocket clients
             this.io.emit('qr_data', {
                 qrImage: qrImageData,
                 pairingCode: null,
                 timestamp: Date.now(),
+                botName: botName,
                 pairingCodeLength: WHATSAPP_CONFIG.PAIRING.LENGTH,
                 pairingMode: 'MANUAL-ONLY',
-                message: 'Scan this QR code with WhatsApp',
-                rawQR: qrString.substring(0, 50) + '...' // For debugging
+                message: `Scan QR for ${botName}`
             });
 
-            // Set QR expiry timeout
             this.clearQRTimeouts();
             this.qrTimeout = setTimeout(() => {
-                console.log('⏰ [WHATSAPP] QR code expired');
+                console.log(`⏰ [WHATSAPP-${botName}] QR code expired`);
                 this.currentQR = null;
                 this.io.emit('qr_expired', {
-                    message: 'QR code expired. Refreshing...',
+                    message: `QR expired for ${botName}`,
+                    botName: botName,
                     timestamp: new Date()
                 });
-                this.refreshQRCode();
+                this.refreshQRCodeForBot(botName);
             }, this.qrExpiryTime);
 
-            // Auto-regenerate QR every 30 seconds if not scanned
             this.qrRegenerationInterval = setInterval(() => {
                 if (!this.isAuthenticated && this.whatsappSocket) {
-                    console.log('🔄 [WHATSAPP] Auto-regenerating QR code');
-                    this.refreshQRCode();
+                    console.log(`🔄 [WHATSAPP-${botName}] Auto-regenerating QR`);
+                    this.refreshQRCodeForBot(botName);
                 }
             }, this.qrRegenerationIntervalMs);
 
         } catch (error) {
-            console.error('❌ [WHATSAPP] QR generation failed:', error);
-            
-            // ✅ Fallback: Send raw QR code as text
-            this.io.emit('qr_data', {
-                qrImage: null,
-                qrText: typeof qrCode === 'string' ? qrCode.substring(0, 100) : 'Invalid QR',
-                pairingCode: null,
-                timestamp: Date.now(),
-                error: 'QR image generation failed',
-                message: 'Try refreshing the page'
-            });
+            console.error(`❌ [WHATSAPP-${botName}] QR generation failed:`, error);
         }
     }
 
     /**
-     * ✅ Handle successful WhatsApp connection
+     * ✅ NEW: Handle successful connection for bot
      */
-    handleSuccessfulConnection() {
+    handleSuccessfulConnectionForBot(botName) {
         this.isAuthenticated = true;
         this.connectionStatus = 'connected';
         this.reconnectAttempts = 0;
         this.whatsappAvailable = true;
 
         this.sessionId = generateSessionId();
-        console.log(`✅ [WHATSAPP] Authenticated. Session ID: ${this.sessionId}`);
+        console.log(`✅ [WHATSAPP-${botName}] Authenticated. Session ID: ${this.sessionId}`);
 
         this.clearQRTimeouts();
         this.currentQR = null;
 
+        // Update bot session info
+        if (this.botSessions.has(botName)) {
+            const session = this.botSessions.get(botName);
+            session.status = 'connected';
+            session.connectedAt = new Date();
+            session.sessionId = this.sessionId;
+        }
+
         this.io.emit('connection_update', {
             status: 'connected',
             sessionId: this.sessionId,
-            message: 'WhatsApp connected successfully',
-            timestamp: new Date()
+            botName: botName,
+            message: `${botName} connected successfully`
         });
 
         this.io.emit('ready', {
             status: 'connected',
             sessionId: this.sessionId,
+            botName: botName,
             phoneNumber: this.currentPhoneNumber,
-            message: 'Scanner is active and ready',
+            message: `${botName} is active and ready`,
             pairingCodeLength: WHATSAPP_CONFIG.PAIRING.LENGTH,
             pairingMode: 'MANUAL-ONLY',
             functions: LIVE_FUNCTIONS_CONFIG.BASE_URL
@@ -374,75 +403,27 @@ class SavageBotsScanner {
     }
 
     /**
-     * ✅ Handle connection close and attempt reconnection
+     * 🔄 NEW: Refresh QR for specific bot
      */
-    handleConnectionClose(lastDisconnect) {
-        const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const logoutRequest = lastDisconnect?.error?.output?.payload?.logoutRequest;
-
-        console.log(`🔌 [WHATSAPP] Connection closed. Status: ${statusCode}, Logout: ${logoutRequest}`);
-
-        this.connectionStatus = 'disconnected';
-        this.isAuthenticated = false;
-        this.whatsappAvailable = false;
-
-        this.io.emit('connection_update', {
-            status: 'disconnected',
-            reason: statusCode ? `Error ${statusCode}` : 'Unknown',
-            shouldReconnect: this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts
-        });
-
-        if (logoutRequest) {
-            console.log('🚪 [WHATSAPP] Logged out from phone');
-            this.io.emit('logged_out', { message: 'Logged out from WhatsApp' });
-            this.shouldReconnect = false;
-            return;
-        }
-
-        if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
-            this.reconnectAttempts++;
-            const delay = Math.min(5000 * this.reconnectAttempts, 30000);
-
-            console.log(`🔄 [WHATSAPP] Reconnecting in ${delay}ms (Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-
-            setTimeout(() => {
-                if (this.shouldReconnect) {
-                    this.initializeWhatsApp().catch(console.error);
-                }
-            }, delay);
-        } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            console.error('❌ [WHATSAPP] Max reconnection attempts reached');
-            this.io.emit('connection_update', {
-                status: 'failed',
-                error: 'Max reconnection attempts reached. Please refresh QR.'
-            });
-        }
-    }
-
-    /**
-     * 🔄 Manually refresh QR code - ENHANCED
-     */
-    async refreshQRCode() {
-        console.log('🔄 [WHATSAPP] Manually refreshing QR code...');
+    async refreshQRCodeForBot(botName) {
+        console.log(`🔄 [WHATSAPP] Refreshing QR for ${botName}...`);
         
-        // Notify clients
         this.io.emit('connection_update', {
             status: 'refreshing',
-            message: 'Refreshing QR code...'
+            botName: botName,
+            message: `Refreshing QR for ${botName}...`
         });
 
-        // Clean up old connection
         if (this.whatsappSocket) {
             try {
                 await this.whatsappSocket.logout();
-                console.log('✅ [WHATSAPP] Old connection cleaned up');
+                console.log(`✅ [WHATSAPP-${botName}] Old connection cleaned up`);
             } catch (error) {
-                console.log('⚠️ [WHATSAPP] Cleanup had issues:', error.message);
+                console.log(`⚠️ [WHATSAPP-${botName}] Cleanup issues:`, error.message);
             }
             this.whatsappSocket = null;
         }
 
-        // Reset state
         this.isAuthenticated = false;
         this.sessionId = null;
         this.currentPhoneNumber = null;
@@ -451,20 +432,62 @@ class SavageBotsScanner {
         this.reconnectAttempts = 0;
         this.shouldReconnect = true;
 
-        // Clear timeouts
         this.clearQRTimeouts();
 
-        // Start new connection with delay
         setTimeout(() => {
-            console.log('🔄 [WHATSAPP] Starting new connection...');
-            this.initializeWhatsApp().catch(error => {
-                console.error('💥 [WHATSAPP] Re-initialization failed:', error.message);
-                this.io.emit('connection_update', {
-                    status: 'failed',
-                    error: 'Failed to reconnect: ' + error.message
+            const sessionDir = this.botSessions.get(botName)?.sessionDir;
+            if (sessionDir) {
+                this.initializeWhatsAppForBot(botName, sessionDir).catch(error => {
+                    console.error(`💥 [WHATSAPP-${botName}] Re-initialization failed:`, error.message);
                 });
+            }
+        }, 2000);
+    }
+
+    /**
+     * 🔌 Handle connection close for bot
+     */
+    handleConnectionClose(lastDisconnect, botName) {
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const logoutRequest = lastDisconnect?.error?.output?.payload?.logoutRequest;
+
+        console.log(`🔌 [WHATSAPP-${botName}] Connection closed. Status: ${statusCode}`);
+
+        this.connectionStatus = 'disconnected';
+        this.isAuthenticated = false;
+        this.whatsappAvailable = false;
+
+        this.io.emit('connection_update', {
+            status: 'disconnected',
+            botName: botName,
+            reason: statusCode ? `Error ${statusCode}` : 'Unknown'
+        });
+
+        if (logoutRequest) {
+            console.log(`🚪 [WHATSAPP-${botName}] Logged out from phone`);
+            this.io.emit('logged_out', { 
+                message: `${botName} logged out`,
+                botName: botName
             });
-        }, 2000); // 2 second delay
+            this.shouldReconnect = false;
+            return;
+        }
+
+        if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.reconnectAttempts++;
+            const delay = Math.min(5000 * this.reconnectAttempts, 30000);
+
+            console.log(`🔄 [WHATSAPP-${botName}] Reconnecting in ${delay}ms`);
+
+            setTimeout(() => {
+                if (this.shouldReconnect) {
+                    const sessionDir = this.botSessions.get(botName)?.sessionDir;
+                    if (sessionDir) {
+                        this.initializeWhatsAppForBot(botName, sessionDir).catch(console.error);
+                    }
+                }
+            }, delay);
+        }
     }
 
     /**
@@ -482,7 +505,7 @@ class SavageBotsScanner {
     }
 
     /**
-     * 🌐 Setup Express server with static files
+     * 🌐 Setup Express server
      */
     async setupExpress() {
         try {
@@ -502,7 +525,7 @@ class SavageBotsScanner {
     }
 
     /**
-     * 🛣️ Setup basic routes
+     * 🛣️ Setup basic routes - UPDATED with bot info
      */
     setupBasicRoutes() {
         this.app.get('/', (req, res) => {
@@ -562,8 +585,10 @@ class SavageBotsScanner {
                 this.currentQR = null;
                 this.currentPairingCode = null;
                 this.activePairingCode = null;
+                this.selectedBot = null;
                 
                 this.pairingCodes.clear();
+                this.botSessions.clear();
                 
                 if (this.client) {
                     this.client.logout();
@@ -574,10 +599,6 @@ class SavageBotsScanner {
                 this.reconnectAttempts = 0;
                 
                 this.io.emit('logout', { message: 'Logged out successfully' });
-                
-                setTimeout(() => {
-                    this.initializeWhatsApp().catch(console.error);
-                }, 2000);
                 
                 res.json({ success: true, message: 'Logged out successfully' });
             } catch (error) {
@@ -608,6 +629,12 @@ class SavageBotsScanner {
                 platform: DEPLOYMENT.getCurrentPlatform().NAME,
                 whatsapp: this.whatsappAvailable,
                 authenticated: this.isAuthenticated,
+                selectedBot: this.selectedBot,
+                botSessions: Array.from(this.botSessions.entries()).map(([name, data]) => ({
+                    name,
+                    status: data.status,
+                    selectedAt: data.selectedAt
+                })),
                 functions: LIVE_FUNCTIONS_CONFIG.BASE_URL,
                 timestamp: new Date(),
                 pairingCodes: {
@@ -623,6 +650,7 @@ class SavageBotsScanner {
                 scanner: 'running',
                 whatsapp: this.whatsappAvailable,
                 authenticated: this.isAuthenticated,
+                selectedBot: this.selectedBot,
                 sessionId: this.sessionId,
                 connectedBots: Array.from(this.connectedBots),
                 currentPhoneNumber: this.currentPhoneNumber,
@@ -637,6 +665,17 @@ class SavageBotsScanner {
 
         this.app.post('/refresh-qr', (req, res) => {
             try {
+                const { botName } = req.body;
+                
+                if (!botName && !this.selectedBot) {
+                    return res.json({ 
+                        success: false, 
+                        error: 'No bot selected or specified' 
+                    });
+                }
+                
+                const targetBot = botName || this.selectedBot;
+                
                 if (this.client) {
                     this.client.logout();
                     this.client = null;
@@ -653,10 +692,16 @@ class SavageBotsScanner {
                 this.clearQRTimeouts();
                 
                 setTimeout(() => {
-                    this.initializeWhatsApp().catch(console.error);
+                    const sessionDir = this.botSessions.get(targetBot)?.sessionDir;
+                    if (sessionDir) {
+                        this.initializeWhatsAppForBot(targetBot, sessionDir).catch(console.error);
+                    }
                 }, 1000);
                 
-                res.json({ success: true, message: 'QR code refresh initiated' });
+                res.json({ 
+                    success: true, 
+                    message: `QR refresh initiated for ${targetBot}` 
+                });
             } catch (error) {
                 res.json({ success: false, error: 'Failed to refresh QR' });
             }
@@ -664,19 +709,27 @@ class SavageBotsScanner {
 
         this.app.post('/generate-pairing-code', (req, res) => {
             try {
-                const { phoneNumber } = req.body;
+                const { phoneNumber, botName } = req.body;
                 
                 if (!phoneNumber || phoneNumber.trim() === '') {
                     return res.json({ 
                         success: false, 
-                        error: 'Phone number is required to generate pairing code' 
+                        error: 'Phone number is required' 
                     });
                 }
 
                 if (!this.isValidPhoneNumber(phoneNumber)) {
                     return res.json({ 
                         success: false, 
-                        error: 'Invalid phone number format. Use international format: +1234567890' 
+                        error: 'Invalid phone number format' 
+                    });
+                }
+
+                const targetBot = botName || this.selectedBot;
+                if (!targetBot) {
+                    return res.json({ 
+                        success: false, 
+                        error: 'Select a bot first' 
                     });
                 }
 
@@ -684,6 +737,7 @@ class SavageBotsScanner {
                 
                 this.pairingCodes.set(pairingCode, {
                     phoneNumber: phoneNumber,
+                    botName: targetBot,
                     generatedAt: Date.now(),
                     expiresAt: Date.now() + WHATSAPP_CONFIG.PAIRING.TIMEOUT,
                     used: false,
@@ -693,13 +747,14 @@ class SavageBotsScanner {
                 this.currentPairingCode = pairingCode;
                 this.activePairingCode = pairingCode;
 
-                console.log(`🔢 [SCANNER] Manual 8-digit pairing code generated for ${phoneNumber}: ${pairingCode}`);
+                console.log(`🔢 [SCANNER] Pairing code for ${targetBot}: ${pairingCode}`);
 
                 this.io.emit('pairing_code_generated', {
                     success: true,
                     pairingCode: pairingCode,
                     phoneNumber: phoneNumber,
-                    message: `8-digit pairing code generated for ${phoneNumber}`,
+                    botName: targetBot,
+                    message: `Pairing code for ${targetBot}`,
                     timestamp: new Date(),
                     isManual: true,
                     length: WHATSAPP_CONFIG.PAIRING.LENGTH
@@ -709,7 +764,8 @@ class SavageBotsScanner {
                     success: true,
                     pairingCode: pairingCode,
                     phoneNumber: phoneNumber,
-                    message: `8-digit pairing code generated for ${phoneNumber}`,
+                    botName: targetBot,
+                    message: `Pairing code generated for ${targetBot}`,
                     length: WHATSAPP_CONFIG.PAIRING.LENGTH
                 });
 
@@ -723,6 +779,7 @@ class SavageBotsScanner {
             const activeCodes = Array.from(this.pairingCodes.entries()).map(([code, data]) => ({
                 code,
                 phoneNumber: data.phoneNumber,
+                botName: data.botName,
                 generatedAt: new Date(data.generatedAt).toISOString(),
                 expiresAt: new Date(data.expiresAt).toISOString(),
                 used: data.used,
@@ -733,11 +790,29 @@ class SavageBotsScanner {
                 activeCodes: activeCodes,
                 totalActive: this.pairingCodes.size,
                 currentPairingCode: this.currentPairingCode,
+                selectedBot: this.selectedBot,
                 config: {
                     length: WHATSAPP_CONFIG.PAIRING.LENGTH,
                     timeout: WHATSAPP_CONFIG.PAIRING.TIMEOUT,
                     mode: 'MANUAL-ONLY'
                 }
+            });
+        });
+
+        this.app.get('/bot-sessions', (req, res) => {
+            const sessions = Array.from(this.botSessions.entries()).map(([name, data]) => ({
+                botName: name,
+                status: data.status,
+                sessionDir: data.sessionDir,
+                selectedAt: data.selectedAt,
+                connectedAt: data.connectedAt,
+                sessionId: data.sessionId
+            }));
+
+            res.json({
+                selectedBot: this.selectedBot,
+                sessions: sessions,
+                totalSessions: this.botSessions.size
             });
         });
     }
@@ -762,7 +837,6 @@ class SavageBotsScanner {
             return response.data;
         } catch (error) {
             console.error(`❌ [FUNCTIONS] ${botType} command failed:`, error.message);
-            
             return this.getFallbackResponse(botType, command, args);
         }
     }
@@ -788,7 +862,7 @@ class SavageBotsScanner {
         };
 
         const botFallback = fallbacks[botType] || {};
-        const response = botFallback[command] || `❌ Command not available in fallback mode: $${command}`;
+        const response = botFallback[command] || `❌ Command not available in fallback mode: ${command}`;
 
         return {
             success: true,
@@ -799,7 +873,7 @@ class SavageBotsScanner {
     }
 
     /**
-     * 🔌 Setup WebSocket communication
+     * 🔌 Setup WebSocket communication - UPDATED with bot selection
      */
     setupWebSocket() {
         this.io.on('connection', (socket) => {
@@ -809,6 +883,7 @@ class SavageBotsScanner {
                 scanner: 'running',
                 whatsapp: this.whatsappAvailable,
                 authenticated: this.isAuthenticated,
+                selectedBot: this.selectedBot,
                 hasQr: !!this.currentQR,
                 sessionId: this.sessionId,
                 currentPhoneNumber: this.currentPhoneNumber,
@@ -816,30 +891,42 @@ class SavageBotsScanner {
                 pairingCodesActive: this.pairingCodes.size,
                 pairingCodeLength: WHATSAPP_CONFIG.PAIRING.LENGTH,
                 pairingMode: 'MANUAL-ONLY',
-                functions: LIVE_FUNCTIONS_CONFIG.BASE_URL
+                functions: LIVE_FUNCTIONS_CONFIG.BASE_URL,
+                botSessions: Array.from(this.botSessions.entries()).map(([name, data]) => ({
+                    name,
+                    status: data.status
+                }))
             };
             
             socket.emit('scanner_status', status);
 
-            if (this.isAuthenticated && this.sessionId) {
+            if (this.isAuthenticated && this.sessionId && this.selectedBot) {
                 socket.emit('ready', {
                     status: 'connected',
                     sessionId: this.sessionId,
+                    botName: this.selectedBot,
                     phoneNumber: this.currentPhoneNumber,
-                    message: 'Scanner is active and ready',
+                    message: `${this.selectedBot} is active and ready`,
                     pairingCodeLength: WHATSAPP_CONFIG.PAIRING.LENGTH,
                     pairingMode: 'MANUAL-ONLY',
                     functions: LIVE_FUNCTIONS_CONFIG.BASE_URL
                 });
-            } else if (this.currentQR) {
+            } else if (this.currentQR && this.selectedBot) {
                 socket.emit('qr_data', {
                     qrImage: this.currentQR,
                     pairingCode: null,
                     timestamp: Date.now(),
+                    botName: this.selectedBot,
                     pairingCodeLength: WHATSAPP_CONFIG.PAIRING.LENGTH,
                     pairingMode: 'MANUAL-ONLY'
                 });
             }
+
+            // NEW: Bot selection event
+            socket.on('select_bot', (data) => {
+                const { botName } = data;
+                this.handleBotSelection(botName, socket);
+            });
 
             socket.on('execute_command', async (data) => {
                 try {
@@ -859,7 +946,15 @@ class SavageBotsScanner {
             });
 
             socket.on('refresh_qr', () => {
-                console.log(`🔄 [SCANNER] QR refresh requested by: ${socket.id}`);
+                if (!this.selectedBot) {
+                    socket.emit('qr_refreshed', {
+                        success: false,
+                        error: 'No bot selected'
+                    });
+                    return;
+                }
+
+                console.log(`🔄 [SCANNER] QR refresh requested for ${this.selectedBot}`);
                 
                 if (this.client) {
                     this.client.logout();
@@ -877,29 +972,40 @@ class SavageBotsScanner {
                 this.clearQRTimeouts();
                 
                 setTimeout(() => {
-                    this.initializeWhatsApp().catch(console.error);
+                    const sessionDir = this.botSessions.get(this.selectedBot)?.sessionDir;
+                    if (sessionDir) {
+                        this.initializeWhatsAppForBot(this.selectedBot, sessionDir).catch(console.error);
+                    }
                 }, 1000);
                 
                 socket.emit('qr_refreshed', {
                     success: true,
-                    message: 'QR code refresh initiated'
+                    message: `QR refresh initiated for ${this.selectedBot}`
                 });
             });
 
             socket.on('generate_pairing_code', (data) => {
                 try {
-                    const { phoneNumber } = data;
+                    const { phoneNumber, botName } = data;
+                    const targetBot = botName || this.selectedBot;
                     
+                    if (!targetBot) {
+                        socket.emit('pairing_code_error', {
+                            error: 'Select a bot first'
+                        });
+                        return;
+                    }
+
                     if (!phoneNumber || phoneNumber.trim() === '') {
                         socket.emit('pairing_code_error', {
-                            error: 'Phone number is required to generate pairing code'
+                            error: 'Phone number is required'
                         });
                         return;
                     }
 
                     if (!this.isValidPhoneNumber(phoneNumber)) {
                         socket.emit('pairing_code_error', {
-                            error: 'Invalid phone number format. Use international format: +1234567890'
+                            error: 'Invalid phone number format'
                         });
                         return;
                     }
@@ -908,6 +1014,7 @@ class SavageBotsScanner {
                     
                     this.pairingCodes.set(pairingCode, {
                         phoneNumber: phoneNumber,
+                        botName: targetBot,
                         generatedAt: Date.now(),
                         expiresAt: Date.now() + WHATSAPP_CONFIG.PAIRING.TIMEOUT,
                         used: false,
@@ -917,13 +1024,14 @@ class SavageBotsScanner {
                     this.currentPairingCode = pairingCode;
                     this.activePairingCode = pairingCode;
 
-                    console.log(`🔢 [SCANNER] Manual 8-digit pairing code generated for ${phoneNumber}: ${pairingCode}`);
+                    console.log(`🔢 [SCANNER] Pairing code for ${targetBot}: ${pairingCode}`);
 
                     this.io.emit('pairing_code_generated', {
                         success: true,
                         pairingCode: pairingCode,
                         phoneNumber: phoneNumber,
-                        message: `8-digit pairing code generated for ${phoneNumber}`,
+                        botName: targetBot,
+                        message: `Pairing code for ${targetBot}`,
                         timestamp: new Date(),
                         isManual: true,
                         length: WHATSAPP_CONFIG.PAIRING.LENGTH
@@ -933,7 +1041,8 @@ class SavageBotsScanner {
                         success: true,
                         pairingCode: pairingCode,
                         phoneNumber: phoneNumber,
-                        message: `8-digit pairing code generated for ${phoneNumber}`
+                        botName: targetBot,
+                        message: `Pairing code generated for ${targetBot}`
                     });
 
                 } catch (error) {
@@ -954,11 +1063,13 @@ class SavageBotsScanner {
                     this.currentQR = null;
                     this.currentPairingCode = null;
                     this.activePairingCode = null;
+                    this.selectedBot = null;
                     this.connectedBots.clear();
                     this.reconnectAttempts = 0;
                     
                     this.clearQRTimeouts();
                     this.pairingCodes.clear();
+                    this.botSessions.clear();
                     
                     if (this.client) {
                         await this.client.logout();
@@ -975,10 +1086,6 @@ class SavageBotsScanner {
                     this.io.emit('logout', {
                         message: 'Scanner has been logged out'
                     });
-                    
-                    setTimeout(() => {
-                        this.initializeWhatsApp().catch(console.error);
-                    }, 3000);
                     
                     console.log('✅ [SCANNER] Logout completed successfully');
                     
@@ -1056,6 +1163,7 @@ class SavageBotsScanner {
                     scanner: 'running',
                     whatsapp: this.whatsappAvailable,
                     authenticated: this.isAuthenticated,
+                    selectedBot: this.selectedBot,
                     sessionId: this.sessionId,
                     connectedBots: Array.from(this.connectedBots),
                     currentPhoneNumber: this.currentPhoneNumber,
@@ -1079,12 +1187,18 @@ class SavageBotsScanner {
     }
 
     /**
-     * 🚀 Start the server - CRITICAL FIX: Always bind to port
+     * 🚀 Start the server
      */
     startServer() {
         const port = process.env.PORT || SERVER_CONFIG.PORT;
         
-        // Must use 0.0.0.0 for Render compatibility
+        // Ensure sessions directory exists
+        const sessionsDir = path.join(__dirname, 'sessions');
+        if (!fs.existsSync(sessionsDir)) {
+            fs.mkdirSync(sessionsDir, { recursive: true });
+            console.log('📁 [SCANNER] Created sessions directory');
+        }
+        
         this.server.listen(port, '0.0.0.0', () => {
             console.log('🦅 ============================================================');
             console.log('🦅 SAVAGE BOTS SCANNER - OPERATIONAL');
@@ -1093,15 +1207,14 @@ class SavageBotsScanner {
             console.log(`🔐 Password protected: http://0.0.0.0:${port}/password`);
             console.log(`📱 Scanner interface: http://0.0.0.0:${port}/scanner`);
             console.log(`🤖 Bots supported: SAVAGE-X, DE-UKNOWN-BOT, QUEEN-RIXIE`);
+            console.log(`🎯 Bot Selection: TAP-TO-CONNECT system active`);
+            console.log(`📁 Sessions: Separate folder per bot`);
             console.log(`🌐 Live functions: ${LIVE_FUNCTIONS_CONFIG.BASE_URL}`);
-            console.log(`🔢 Pairing codes: ${WHATSAPP_CONFIG.PAIRING.LENGTH}-digit MANUAL-ONLY system`);
-            console.log(`📱 QR codes: Auto-regeneration every ${this.qrRegenerationIntervalMs}ms`);
-            console.log(`🔄 Manual pairing: Phone number REQUIRED for pairing codes`);
+            console.log(`🔢 Pairing codes: ${WHATSAPP_CONFIG.PAIRING.LENGTH}-digit MANUAL-ONLY`);
             console.log(`🦅 ${SCANNER_IDENTITY.MOTTO}`);
             console.log('🦅 ============================================================');
         });
 
-        // Handle server errors gracefully
         this.server.on('error', (error) => {
             console.error('💥 [SERVER] Failed to start:', error);
         });
