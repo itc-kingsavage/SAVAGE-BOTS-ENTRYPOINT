@@ -584,6 +584,7 @@ body::before {
 .bot-card {
     padding: 20px;
     text-align: center;
+    cursor: pointer; /* ✅ ADDED: Shows it's clickable */
     transition: all 0.3s ease;
     border: 2px solid;
     border-radius: var(--terminal-radius);
@@ -594,9 +595,17 @@ body::before {
     box-shadow: 0 10px 25px rgba(0, 255, 0, 0.3);
 }
 
-.bot-card.savage-x { border-color: var(--matrix-green); }
-.bot-card.de_unknown { border-color: var(--accent-blue); }
+/* ✅ UPDATED: Bot card classes to match new IDs */
+.bot-card.savage_x { border-color: var(--matrix-green); }
+.bot-card.de_uknown_bot { border-color: var(--accent-blue); }
 .bot-card.queen_rixie { border-color: var(--accent-purple); }
+
+/* ✅ ADDED: Selected bot state */
+.bot-card.selected {
+    border: 3px solid var(--matrix-green);
+    box-shadow: 0 0 20px var(--matrix-green);
+    transform: scale(1.05);
+}
 
 .bot-card.online { 
     background: rgba(0, 255, 0, 0.05);
@@ -617,8 +626,9 @@ body::before {
     border: 2px solid;
 }
 
-.savage-x .bot-icon { border-color: var(--matrix-green); background: rgba(0, 255, 0, 0.1); }
-.de_unknown .bot-icon { border-color: var(--accent-blue); background: rgba(0, 0, 255, 0.1); }
+/* ✅ UPDATED: Bot icon classes to match new IDs */
+.savage_x .bot-icon { border-color: var(--matrix-green); background: rgba(0, 255, 0, 0.1); }
+.de_uknown_bot .bot-icon { border-color: var(--accent-blue); background: rgba(0, 0, 255, 0.1); }
 .queen_rixie .bot-icon { border-color: var(--accent-purple); background: rgba(255, 0, 255, 0.1); }
 
 .bot-name {
