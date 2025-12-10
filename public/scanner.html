@@ -796,9 +796,39 @@
             // Add keyboard shortcuts help
             setupKeyboardHelp();
             
+            // Auto-select bot from URL parameter
+            autoSelectBotFromURL();
+            
             // Show welcome message
             showNotification('🦅 SAVAGE SCANNER READY - Manual-only pairing codes active', 'success');
         });
+
+        function autoSelectBotFromURL() {
+            // Auto-select bot from URL parameter for testing
+            const urlParams = new URLSearchParams(window.location.search);
+            const botParam = urlParams.get('bot');
+            
+            if (botParam) {
+                const botMap = {
+                    'savage-x': 'SAVAGE-X',
+                    'de-unknown': 'DE-UKNOWN-BOT',
+                    'queen-rixie': 'QUEEN-RIXIE'
+                };
+                
+                const botName = botMap[botParam.toLowerCase()];
+                if (botName) {
+                    console.log('🤖 [AUTO-SELECT] Selecting bot from URL:', botName);
+                    
+                    // Wait for scanner to initialize, then select bot
+                    setTimeout(() => {
+                        if (window.savageScanner) {
+                            window.savageScanner.selectBot(botName);
+                            showNotification(`🤖 Auto-selecting ${botName} from URL`, 'info');
+                        }
+                    }, 3000);
+                }
+            }
+        }
 
         function updateUIForManualMode() {
             // Update status messages for manual-only mode
@@ -1100,6 +1130,19 @@
         window.refreshQR = refreshQR;
         window.logout = logout;
         window.isValidPhoneNumber = isValidPhoneNumber;
+    </script>
+
+    <!-- 🆕 DEBUG: Auto-select bot from URL -->
+    <script>
+        // Force auto-select for testing
+        setTimeout(() => {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (!urlParams.get('bot') && window.savageScanner) {
+                console.log('🤖 [DEBUG] Testing auto-select...');
+                // Uncomment for testing:
+                // window.savageScanner.selectBot('SAVAGE-X');
+            }
+        }, 5000);
     </script>
 </body>
 </html>
